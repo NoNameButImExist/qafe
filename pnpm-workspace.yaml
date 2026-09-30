@@ -5,6 +5,10 @@ packages:
 # Build skripte smiju pokretati samo ovi paketi (pnpm ih inače blokira).
 allowBuilds:
   '@swc/core': true
+  cpu-features: false
+  esbuild: false
+  protobufjs: false
+  ssh2: false
   unrs-resolver: false
 
 # pnpm po defaultu odbija verzije objavljene prije manje od minimumReleaseAge
@@ -14,3 +18,4 @@ minimumReleaseAgeExclude:
   - '@nestjs/core@12.1.2'
   - '@nestjs/platform-fastify@12.1.2'
   - '@nestjs/testing@12.1.2'
+  - lucide-react@1.49.0

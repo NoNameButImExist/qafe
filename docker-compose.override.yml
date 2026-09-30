@@ -1,0 +1,12 @@
+# Development overrides (loaded automatically by `docker compose`).
+# Ports are bound to 127.0.0.1 only, never to all interfaces.
+
+services:
+  postgres:
+    ports:
+      - 127.0.0.1:${POSTGRES_PORT:-5432}:5432
+
+  minio:
+    ports:
+      - 127.0.0.1:${MINIO_PORT:-9000}:9000
+      - 127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001
