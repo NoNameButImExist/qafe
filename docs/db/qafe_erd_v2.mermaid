@@ -1,0 +1,53 @@
+erDiagram
+    %% Pune linije = FK unutar servisa. Isprekidane = veza prema drugom servisu (samo uuid, bez FK).
+
+    %% ---------- core ----------
+    core_users ||--o{ core_venue_members : "nalog"
+    core_users ||--o{ core_auth_sessions : ""
+    core_venues ||--o{ core_venue_members : "osoblje"
+    core_venues ||--o{ core_venue_roles : ""
+    core_venue_roles ||--o{ core_role_permissions : ""
+    core_permissions ||--o{ core_role_permissions : ""
+    core_venue_roles ||--o{ core_venue_members : "uloga"
+    core_venues ||--o{ core_venue_modules : "uključeni moduli"
+    core_modules ||--o{ core_venue_modules : ""
+    core_venues ||--o{ core_venue_payment_methods : "gotovina, kartica"
+    core_venues ||--o{ core_areas : ""
+    core_areas ||--o{ core_tables : ""
+    core_venues ||--o{ core_prep_stations : "samo uz KDS"
+    core_venue_members ||--o{ core_shifts : "opcionalno"
+    core_venue_members ||--o{ core_member_area_assignments : "opcionalno"
+    core_areas ||--o{ core_member_area_assignments : ""
+
+    %% ---------- catalog ----------
+    catalog_menus ||--o{ catalog_categories : ""
+    catalog_categories ||--o{ catalog_items : ""
+    catalog_items ||--o{ catalog_item_modifier_groups : ""
+    catalog_modifier_groups ||--o{ catalog_item_modifier_groups : ""
+    catalog_modifier_groups ||--o{ catalog_modifier_options : ""
+    catalog_items ||--o{ catalog_item_translations : "V2"
+    catalog_items ||--o{ catalog_item_allergens : "V3"
+    core_venues ||..o{ catalog_menus : "venue_id"
+    core_prep_stations ||..o{ catalog_items : "prep_station_id"
+
+    %% ---------- ordering ----------
+    core_tables ||..o{ ordering_table_sessions : "table_id"
+    ordering_table_sessions ||--o{ ordering_session_guests : "uređaji"
+    ordering_session_guests ||--o| ordering_table_sessions : "domaćin"
+    ordering_session_guests ||--o{ ordering_orders : "naručio"
+    ordering_table_sessions ||--o{ ordering_orders : ""
+    ordering_table_sessions ||--o{ ordering_device_blocks : "blokade"
+    ordering_orders ||--o{ ordering_order_items : ""
+    ordering_order_items ||--o{ ordering_order_item_modifiers : ""
+    ordering_orders ||--o{ ordering_order_changes : "izmjene osoblja"
+    ordering_orders ||--o{ ordering_order_status_history : ""
+    ordering_table_sessions ||--o{ ordering_service_requests : "poziv, račun"
+    catalog_items ||..o{ ordering_order_items : "snapshot"
+
+    %% ---------- billing ----------
+    ordering_table_sessions ||..o{ billing_payments : "session_id"
+    billing_payments ||--o{ billing_payment_items : ""
+    ordering_order_items ||..o{ billing_payment_items : "order_item_id"
+
+    %% ---------- reporting ----------
+    ordering_order_items ||..|| reporting_order_item_facts : "događaj order.served"

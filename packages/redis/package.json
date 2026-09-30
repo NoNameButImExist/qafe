@@ -1,0 +1,28 @@
+{
+  "name": "@qafe/redis",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Redis client, key prefixes per module and BullMQ queue factory.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@qafe/config": "workspace:*",
+    "@types/node": "^24.19.0",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.2"
+  }
+}

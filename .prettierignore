@@ -1,0 +1,8 @@
+pnpm-lock.yaml
+**/dist
+**/dev-dist
+**/coverage
+**/CHANGELOG.md
+.release-please-manifest.json
+# Dokumentacija se piše ručno; Prettier bi preformatirao tabele.
+docs/

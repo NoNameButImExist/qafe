@@ -1,0 +1,53 @@
+# zavisnosti
+node_modules/
+.pnpm-store/
+
+# build i keš
+dist/
+build/
+out/
+.turbo/
+.vite/
+dev-dist/
+*.tsbuildinfo
+.cache/
+
+# testovi
+coverage/
+playwright-report/
+test-results/
+blob-report/
+
+# okruženje i tajne
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+secrets/
+
+# logovi
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# lokalni podaci docker servisa
+.data/
+pgdata/
+minio-data/
+
+# OS i editori
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# generisano
+packages/db/src/generated/
+
+# Capacitor (kasnije)
+android/app/build/
+ios/App/Pods/
