@@ -6,24 +6,6 @@ Requirements: [docs/requirements.md](docs/requirements.md) · DB schema: [docs/d
 
 ## Run locally
 
-1. Install Node 24 (`fnm use` or `nvm use` reads `.nvmrc`) and enable pnpm: `corepack enable pnpm`
-2. `pnpm install`
-3. `cp .env.example .env`
-4. `pnpm dev`
-
-API: http://localhost:3000/health/live · guest 5173 · staff 5174 · panel 5175 · admin 5176 · web 5177
-
-The database, Redis and the full Docker stack are added in later phases (see [CLAUDE.md](CLAUDE.md)).
-
-## Common commands
-
-| Command                                                                 | What it does                                     |
-| ----------------------------------------------------------------------- | ------------------------------------------------ |
-| `pnpm check`                                                            | lint, typecheck, test and build                  |
-| `pnpm turbo run test --affected`                                        | only packages changed vs `main`                  |
-| `pnpm format`                                                           | format everything with Prettier                  |
-| `docker build -f infra/docker/service.Dockerfile --build-arg APP=api .` | backend image (`api`, `worker`)                  |
-| `docker build -f infra/docker/web.Dockerfile --build-arg APP=guest .`   | frontend image (guest, staff, panel, admin, web) |
 Needs Node 24 (`fnm use` / `nvm use` reads `.nvmrc`), `corepack enable pnpm` once, and Docker.
 
 1. `pnpm install`
@@ -39,6 +21,7 @@ Needs Node 24 (`fnm use` / `nvm use` reads `.nvmrc`), `corepack enable pnpm` onc
 | Panel (venue) | http://localhost:5175              | venue `demo-kafic`, user `sef` or `konobar`, `SEED_STAFF_PASSWORD` |
 | API           | http://localhost:3000/health/ready |                                                                    |
 | MinIO console | http://localhost:9001              | `S3_ACCESS_KEY` / `S3_SECRET_KEY`                                  |
+| Landing page  | http://localhost:5177              |                                                                    |
 
 ## Common commands
 
