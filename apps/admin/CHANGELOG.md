@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.1](https://github.com/NoNameButImExist/qafe/compare/admin-v0.2.0...admin-v0.2.1) (2026-10-01)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @qafe/contracts bumped to 0.2.1
+    * @qafe/ui bumped to 0.2.1
+  * devDependencies
+    * @qafe/config bumped to 0.2.0
+
 ## [0.2.0](https://github.com/NoNameButImExist/qafe/compare/admin-v0.1.0...admin-v0.2.0) (2026-10-01)
 
 
