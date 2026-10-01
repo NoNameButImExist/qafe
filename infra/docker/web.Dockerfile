@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-# Static frontend image (guest, staff, panel, admin) served by unprivileged nginx.
+# Static frontend image (guest, staff, panel, admin, web) served by unprivileged nginx.
 #   docker build -f infra/docker/web.Dockerfile --build-arg APP=guest .
 
 ARG NODE_VERSION=24

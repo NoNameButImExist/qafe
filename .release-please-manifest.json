@@ -4,6 +4,7 @@
   "apps/guest": "0.1.0",
   "apps/panel": "0.1.0",
   "apps/staff": "0.1.0",
+  "apps/web": "0.1.0",
   "apps/worker": "0.1.0",
   "packages/auth": "0.1.0",
   "packages/config": "0.1.0",

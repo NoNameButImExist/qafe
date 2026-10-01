@@ -1,0 +1,166 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens. Every colour and coloured shadow on the page comes from here;
+ * components only use the semantic names (bg-primary, text-on-primary, shadow-glow...).
+ * To change the palette, change the values below (or the [data-palette] block further down).
+ */
+@theme {
+  --font-display: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+
+  /* Surfaces and text */
+  --color-canvas: #0c0806;
+  --color-surface: #15100c;
+  --color-surface-2: #211913;
+  --color-fg: #f6ebdd;
+  --color-muted: #b3a393;
+  --color-line: color-mix(in oklab, var(--color-fg) 10%, transparent);
+
+  /* Brand */
+  --color-primary: #ffb547;
+  --color-on-primary: #0c0806;
+  --color-accent: #ff5a36;
+  --color-accent-2: #ff8fb1;
+  --color-glow: #8b3dff;
+
+  /* Status: the same meaning in every palette */
+  --color-success: #4ee6b0;
+  --color-on-success: #06231a;
+  --color-alert: #ff5a36;
+  --color-on-alert: #1c0703;
+
+  /* Printed things: the QR table tent and the scanned code */
+  --color-paper: #f6ebdd;
+  --color-on-paper: #0c0806;
+
+  /* Phone mockups */
+  --color-phone-top: #2a211b;
+  --color-phone-bottom: #120d0a;
+
+  /* Coloured shadows */
+  --shadow-glow: 0 0 40px 4px color-mix(in oklab, var(--color-primary) 35%, transparent);
+  --shadow-glow-strong: 0 0 40px 8px color-mix(in oklab, var(--color-primary) 60%, transparent);
+  --shadow-glow-dark: 0 0 40px 4px color-mix(in oklab, var(--color-canvas) 35%, transparent);
+  --shadow-scanline: 0 0 20px 4px color-mix(in oklab, var(--color-primary) 70%, transparent);
+  --shadow-band: 0 20px 80px -20px color-mix(in oklab, var(--color-primary) 50%, transparent);
+  --shadow-tent: 0 60px 120px -30px color-mix(in oklab, var(--color-accent) 45%, transparent);
+  --shadow-phone: 0 40px 120px -20px rgb(0 0 0 / 0.9), inset 0 1px 0 rgb(255 255 255 / 0.08);
+}
+
+/*
+ * Palette proposals while the brand colours are being decided. The default above is
+ * "espresso"; the alternative is previewed with ?palette=<name> or the switcher in the corner.
+ * Status colours (success, alert) keep their meaning in every palette.
+ */
+
+/* Crema: light, warm cream with terracotta. Café menu feel, calm but confident. */
+html[data-palette='crema'] {
+  --color-canvas: #f6efe6;
+  --color-surface: #fffaf3;
+  --color-surface-2: #efe4d6;
+  --color-fg: #1c120c;
+  --color-muted: #7a6656;
+
+  --color-primary: #e4572e;
+  --color-on-primary: #ffffff;
+  --color-accent: #f29e4c;
+  --color-accent-2: #b8336a;
+  --color-glow: #f7c59f;
+
+  /* Darker shade on a light background, same meaning. */
+  --color-success: #1fa97a;
+
+  --color-paper: #ffffff;
+  --color-on-paper: #1c120c;
+}
+
+:root {
+  /* Placeholder "photos" for menu items in the phone mockups. */
+  --thumb-1: linear-gradient(135deg, #c2682a, #5a2a16);
+  --thumb-2: linear-gradient(135deg, #c98b2c, #5c3f17);
+  --thumb-3: linear-gradient(135deg, #b8b02e, #585218);
+  --thumb-4: linear-gradient(135deg, #7fb532, #3a5a19);
+
+  /* Swatches in the palette switcher (each shows its own palette, whichever is active). */
+  --swatch-espresso: linear-gradient(135deg, #ffb547, #ff5a36);
+  --swatch-crema: linear-gradient(135deg, #f6efe6 50%, #e4572e 50%);
+}
+
+@layer base {
+  html {
+    background: var(--color-canvas);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    scroll-padding-top: 5rem;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  body {
+    min-height: 100dvh;
+    overflow-x: clip;
+  }
+
+  ::selection {
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+}
+
+@utility font-display {
+  font-family: var(--font-display);
+  font-variation-settings: 'wdth' 100;
+  letter-spacing: -0.03em;
+}
+
+/* Film grain over the whole page. Pointer events pass through. */
+@utility grain {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.06;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@utility text-gradient {
+  background: linear-gradient(
+    100deg,
+    var(--color-primary) 10%,
+    var(--color-accent) 60%,
+    var(--color-accent-2) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility bg-grid {
+  background-image:
+    linear-gradient(var(--color-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-line) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+@utility text-ghost {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--color-fg) 12%, transparent),
+    transparent
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}

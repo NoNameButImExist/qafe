@@ -11,19 +11,19 @@ Requirements: [docs/requirements.md](docs/requirements.md) · DB schema: [docs/d
 3. `cp .env.example .env`
 4. `pnpm dev`
 
-API: http://localhost:3000/health/live · guest 5173 · staff 5174 · panel 5175 · admin 5176
+API: http://localhost:3000/health/live · guest 5173 · staff 5174 · panel 5175 · admin 5176 · web 5177
 
 The database, Redis and the full Docker stack are added in later phases (see [CLAUDE.md](CLAUDE.md)).
 
 ## Common commands
 
-| Command                                                                 | What it does                                |
-| ----------------------------------------------------------------------- | ------------------------------------------- |
-| `pnpm check`                                                            | lint, typecheck, test and build             |
-| `pnpm turbo run test --affected`                                        | only packages changed vs `main`             |
-| `pnpm format`                                                           | format everything with Prettier             |
-| `docker build -f infra/docker/service.Dockerfile --build-arg APP=api .` | backend image (`api`, `worker`)             |
-| `docker build -f infra/docker/web.Dockerfile --build-arg APP=guest .`   | frontend image (guest, staff, panel, admin) |
+| Command                                                                 | What it does                                     |
+| ----------------------------------------------------------------------- | ------------------------------------------------ |
+| `pnpm check`                                                            | lint, typecheck, test and build                  |
+| `pnpm turbo run test --affected`                                        | only packages changed vs `main`                  |
+| `pnpm format`                                                           | format everything with Prettier                  |
+| `docker build -f infra/docker/service.Dockerfile --build-arg APP=api .` | backend image (`api`, `worker`)                  |
+| `docker build -f infra/docker/web.Dockerfile --build-arg APP=guest .`   | frontend image (guest, staff, panel, admin, web) |
 
 ## Releases
 

@@ -15,7 +15,10 @@ const nodeFiles = [
   'apps/worker/**/*.ts',
   'packages/{contracts,db,auth,observability,redis}/**/*.ts',
 ];
-const reactFiles = ['apps/{guest,staff,panel,admin}/**/*.{ts,tsx}', 'packages/ui/**/*.{ts,tsx}'];
+const reactFiles = [
+  'apps/{guest,staff,panel,admin,web}/**/*.{ts,tsx}',
+  'packages/ui/**/*.{ts,tsx}',
+];
 
 export default defineConfig(
   {
