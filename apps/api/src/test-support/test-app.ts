@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { hashPassword } from '@qafe/auth';
 import { startTestDatabase, type TestDatabase } from '@qafe/db/testing';
+import { RedisContainer, type StartedRedisContainer } from '@testcontainers/redis';
 import { exportPKCS8, exportSPKI, generateKeyPair } from 'jose';
 import pg from 'pg';
 import { createApp } from '../bootstrap.js';
@@ -14,18 +15,21 @@ export interface TestApp {
   /** Superuser connection for fixtures and assertions. */
   admin: pg.Client;
   storage: MemoryStorage;
+  redis: StartedRedisContainer;
+  config: AppConfig;
   close(): Promise<void>;
 }
 
-/** The whole API against a fresh Postgres (Testcontainers), with in-memory file storage. */
-export async function startTestApp(): Promise<TestApp> {
-  const db = await startTestDatabase();
-  const admin = new pg.Client({ connectionString: db.adminUrl });
-  await admin.connect();
+export const startTestRedis = () => new RedisContainer('redis:8.6-alpine').start();
 
+/** App config for tests: module roles of the test database, a throwaway key pair. */
+export async function testConfig(
+  db: TestDatabase,
+  redis: StartedRedisContainer,
+): Promise<AppConfig> {
   const keys = await generateKeyPair('EdDSA', { extractable: true });
   const core = db.connection('core');
-  const config: AppConfig = {
+  return {
     env: 'test',
     port: 0,
     db: {
@@ -35,7 +39,10 @@ export async function startTestApp(): Promise<TestApp> {
       corePassword: core.password,
       auditPassword: db.connection('audit').password,
       catalogPassword: db.connection('catalog').password,
+      orderingPassword: db.connection('ordering').password,
+      billingPassword: db.connection('billing').password,
     },
+    redis: { host: redis.getHost(), port: redis.getPort(), password: undefined },
     storage: { driver: 'memory' },
     auth: {
       privateKeyPem: await exportPKCS8(keys.privateKey),
@@ -48,7 +55,20 @@ export async function startTestApp(): Promise<TestApp> {
       adminMfaRequired: false,
     },
     corsOrigins: [],
+    guestUrlTemplate: 'https://{slug}.qafe.test/t/{token}',
+    guest: { domain: 'qafe.test', deviceSecret: 'test-device-secret', cookieSecure: true },
+    push: { vapidPublicKey: 'test-vapid-public-key' },
   };
+}
+
+/** The whole API against a fresh Postgres and Redis (Testcontainers), in-memory file storage. */
+export async function startTestApp(): Promise<TestApp> {
+  const db = await startTestDatabase();
+  const admin = new pg.Client({ connectionString: db.adminUrl });
+  await admin.connect();
+
+  const redis = await startTestRedis();
+  const config = await testConfig(db, redis);
   const app = await createApp(config);
   await app.init();
   await app.getHttpAdapter().getInstance().ready();
@@ -58,10 +78,12 @@ export async function startTestApp(): Promise<TestApp> {
     db,
     admin,
     storage: app.get<MemoryStorage>(STORAGE),
+    redis,
+    config,
     close: async () => {
       await app.close();
       await admin.end();
-      await db.stop();
+      await Promise.all([db.stop(), redis.stop()]);
     },
   };
 }

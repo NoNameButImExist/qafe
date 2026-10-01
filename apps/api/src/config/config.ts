@@ -12,6 +12,12 @@ const Env = z.object({
   SVC_CORE_PASSWORD: z.string().min(1),
   SVC_AUDIT_PASSWORD: z.string().min(1),
   SVC_CATALOG_PASSWORD: z.string().min(1),
+  SVC_ORDERING_PASSWORD: z.string().min(1),
+  SVC_BILLING_PASSWORD: z.string().min(1),
+
+  REDIS_HOST: z.string().default('localhost'),
+  REDIS_PORT: z.coerce.number().int().positive().default(6379),
+  REDIS_PASSWORD: z.string().optional(),
 
   // PEM content wins over a path (production secrets are usually injected as values).
   JWT_PRIVATE_KEY: z.string().optional(),
@@ -23,8 +29,18 @@ const Env = z.object({
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
   AUTH_COOKIE_PATH: z.string().startsWith('/').default('/auth'),
   ADMIN_MFA_REQUIRED: z.stringbool().default(false),
+  /** Secure cookies; defaults to off only in development. Set false for the local Docker stack over http. */
+  COOKIE_SECURE: z.stringbool().optional(),
 
   CORS_ORIGINS: z.string().default(''),
+  /** Base domain; guests reach a venue at <slug>.<DOMAIN> and the tenant comes from the host. */
+  DOMAIN: z.string().min(1).default('qafe.ba'),
+  /** HMAC key for the anonymous device id in the guest cookie (only the hash is stored). */
+  GUEST_SESSION_SECRET: z.string().min(16),
+  /** Web Push for staff (FR-KON-05). Empty = push off. The worker holds the private key. */
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  /** Address a table's QR code opens; {slug} and {token} are filled in. */
+  GUEST_URL_TEMPLATE: z.string().default('https://{slug}.qafe.ba/t/{token}'),
 
   // Menu images and logos. "memory" keeps files in the process (tests only).
   STORAGE_DRIVER: z.enum(['s3', 'memory']).default('s3'),
@@ -59,7 +75,10 @@ export interface AppConfig {
     corePassword: string;
     auditPassword: string;
     catalogPassword: string;
+    orderingPassword: string;
+    billingPassword: string;
   };
+  redis: { host: string; port: number; password: string | undefined };
   storage: StorageConfig;
   auth: {
     privateKeyPem: string;
@@ -73,6 +92,15 @@ export interface AppConfig {
     adminMfaRequired: boolean;
   };
   corsOrigins: string[];
+  guestUrlTemplate: string;
+  guest: {
+    /** Guests use <slug>.<domain>; the slug is read from the request host. */
+    domain: string;
+    deviceSecret: string;
+    /** Secure cookie everywhere except local development over http. */
+    cookieSecure: boolean;
+  };
+  push: { vapidPublicKey: string | null };
 }
 
 export const APP_CONFIG = Symbol('APP_CONFIG');
@@ -108,7 +136,10 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
       corePassword: env.SVC_CORE_PASSWORD,
       auditPassword: env.SVC_AUDIT_PASSWORD,
       catalogPassword: env.SVC_CATALOG_PASSWORD,
+      orderingPassword: env.SVC_ORDERING_PASSWORD,
+      billingPassword: env.SVC_BILLING_PASSWORD,
     },
+    redis: { host: env.REDIS_HOST, port: env.REDIS_PORT, password: env.REDIS_PASSWORD },
     storage: storageConfig(env),
     auth: {
       privateKeyPem: readKey(env.JWT_PRIVATE_KEY, env.JWT_PRIVATE_KEY_PATH),
@@ -117,9 +148,16 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
       accessTokenTtlSeconds: env.ACCESS_TOKEN_TTL_SECONDS,
       refreshTokenTtlDays: env.REFRESH_TOKEN_TTL_DAYS,
       cookiePath: env.AUTH_COOKIE_PATH,
-      cookieSecure: env.NODE_ENV !== 'development',
+      cookieSecure: env.COOKIE_SECURE ?? env.NODE_ENV !== 'development',
       adminMfaRequired: env.ADMIN_MFA_REQUIRED,
     },
+    guestUrlTemplate: env.GUEST_URL_TEMPLATE,
+    guest: {
+      domain: env.DOMAIN.toLowerCase(),
+      deviceSecret: env.GUEST_SESSION_SECRET,
+      cookieSecure: env.COOKIE_SECURE ?? env.NODE_ENV !== 'development',
+    },
+    push: { vapidPublicKey: env.VAPID_PUBLIC_KEY || null },
     corsOrigins: env.CORS_ORIGINS.split(',')
       .map((o) => o.trim())
       .filter(Boolean),

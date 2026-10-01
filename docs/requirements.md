@@ -227,3 +227,4 @@ Zahtjevi iz MVP-a koji su svjesno pomjereni za kasnije. Prije puštanja u produk
 | --- | --- | --- | --- |
 | FR-ADM-01 | Dvofaktorska prijava (TOTP) za administratore | Prijava samo emailom i lozinkom. Kolone `mfa_enabled` i `mfa_secret_enc` postoje. Postavka `ADMIN_MFA_REQUIRED=true` odbija prijavu dok TOTP ne bude urađen. | 30. 9. 2026. |
 | FR-SEF-01, FR-ADM-03, FR-ADM-09 | Obavezna promjena privremene lozinke pri prvoj prijavi osoblja | Privremena lozinka radi kao obična. Oznaka `must_change_password` se i dalje postavlja pri kreiranju naloga i resetu, pa se obaveza može uključiti bez migracije. | 30. 9. 2026. |
+| FR-KON-01 | Prijava PIN-om na zajedničkom uređaju lokala | Konobar se prijavljuje korisničkim imenom i lozinkom na svom telefonu. PIN po članu osoblja se već postavlja u panelu (`pin_hash`), pa se prijava PIN-om dodaje uz povezivanje uređaja s lokalom. | 1. 10. 2026. |

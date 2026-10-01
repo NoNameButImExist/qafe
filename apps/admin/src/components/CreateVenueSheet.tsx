@@ -139,7 +139,14 @@ export function CreateVenueSheet({ open, onClose, onCreated }: Props) {
       for (const issue of parsed.error.issues) {
         const path = issue.path.join('.');
         const field = FIELD_OF_PATH[path] ?? (path as keyof FormState);
-        next[field] ??= field === 'slug' ? t('createVenue.slugInvalid') : issueMessage(issue, t);
+        next[field] ??=
+          field === 'slug'
+            ? t(
+                issue.message === 'slug_reserved'
+                  ? 'createVenue.slugReserved'
+                  : 'createVenue.slugInvalid',
+              )
+            : issueMessage(issue, t);
       }
       setErrors(next);
       return;

@@ -35,6 +35,22 @@ const ACTION_ICONS: Record<string, { icon: LucideIcon; tone: string }> = {
   'user.blocked': { icon: UserRoundX, tone: 'bg-danger/12 text-danger' },
   'user.unblocked': { icon: UserRoundCheck, tone: 'bg-success/12 text-success' },
   'user.password_reset': { icon: KeyRound, tone: 'bg-warning/12 text-warning' },
+  'staff.password_reset': { icon: KeyRound, tone: 'bg-warning/12 text-warning' },
+  'staff.pin_changed': { icon: KeyRound, tone: 'bg-warning/12 text-warning' },
+  'staff.created': { icon: UserRoundCheck, tone: 'bg-success/12 text-success' },
+  'staff.updated': { icon: Pencil, tone: 'bg-primary/12 text-accent' },
+  'table.qr_rotated': { icon: RotateCcw, tone: 'bg-warning/12 text-warning' },
+  'item.updated': { icon: Pencil, tone: 'bg-primary/12 text-accent' },
+  'item.availability_changed': { icon: ToggleRight, tone: 'bg-warning/12 text-warning' },
+  'session.verified': { icon: UserRoundCheck, tone: 'bg-success/12 text-success' },
+  'guest.approved': { icon: UserRoundCheck, tone: 'bg-success/12 text-success' },
+  'order.accepted': { icon: Pencil, tone: 'bg-primary/12 text-accent' },
+  'order.disputed': { icon: CircleAlert, tone: 'bg-danger/12 text-danger' },
+  'order.cancelled': { icon: UserRoundX, tone: 'bg-danger/12 text-danger' },
+  'order.rejected': { icon: UserRoundX, tone: 'bg-danger/12 text-danger' },
+  'guest.removed': { icon: UserRoundX, tone: 'bg-danger/12 text-danger' },
+  'payment.completed': { icon: Store, tone: 'bg-success/12 text-success' },
+  'payment.failed': { icon: CircleAlert, tone: 'bg-danger/12 text-danger' },
 };
 
 /** DB column → label key for the "venue.updated" diff. */
@@ -208,7 +224,8 @@ function AuditRow({ entry, label }: { entry: AuditEntry; label: string }) {
     icon: ScrollText,
     tone: 'bg-surface-2 text-muted',
   };
-  const subjectUser = (entry.after as { user?: string } | null)?.user;
+  const after = entry.after as { user?: string; name?: string } | null;
+  const subjectUser = after?.user ?? (entry.action.startsWith('venue.') ? undefined : after?.name);
 
   return (
     <li className="flex gap-4 px-5 py-4">
@@ -296,11 +313,39 @@ function Details({ entry }: { entry: AuditEntry }) {
     case 'user.logged_in':
       content = entry.ip ? t('audit.ip', { ip: entry.ip }) : null;
       break;
+    default: {
+      // Menu, space and staff changes: every field that changed, old → new.
+      const fields = Object.keys({ ...before, ...after }).filter(
+        (f) => f !== 'name' && f !== 'user',
+      );
+      if (fields.length) {
+        content = (
+          <ul className="flex flex-col gap-1">
+            {fields.map((field) => (
+              <li key={field}>
+                <span className="text-muted">{fieldLabel(field, t)}: </span>
+                {field in before ? (
+                  <Change from={show(before[field])} to={show(after[field])} />
+                ) : (
+                  <b>{show(after[field])}</b>
+                )}
+              </li>
+            ))}
+          </ul>
+        );
+      }
+    }
   }
   if (!content) return null;
   return (
     <div className="mt-2 rounded-lg bg-surface-2/70 px-3 py-2 text-xs text-ink">{content}</div>
   );
+}
+
+function fieldLabel(field: string, t: ReturnType<typeof useTranslation>['t']): string {
+  const known = FIELD_LABELS[field];
+  if (known) return t(known as 'createVenue.name');
+  return t(`audit.fields.${field}` as 'audit.fields.label', { defaultValue: field });
 }
 
 function Change({ from, to }: { from: string; to: string }) {

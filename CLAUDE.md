@@ -22,7 +22,7 @@ source of truth for the database; never change it without asking.
 
 - `apps/api`: one NestJS (Fastify) process with modules in `apps/api/src/modules/<name>`:
   `core`, `catalog`, `ordering`, `billing`, `audit`, `reporting`.
-- `apps/worker`: outbox relay (core and catalog outboxes → audit log) and, later, BullMQ jobs.
+- `apps/worker`: outbox relay (all outboxes → audit log, Web Push) and, later, BullMQ jobs.
 - Every module keeps **its own DB schema and DB role** (`svc_<module>`), never reads another schema.
 - A module imports another module **only through its `index.ts`** (ESLint `boundaries/dependencies`
   in `packages/config/eslint.js`). Shared DTOs and event schemas live in `@qafe/contracts`.
@@ -49,7 +49,7 @@ Tenant, auth and data rules:
   reused after 30 s revokes all sessions of that user), `POST /auth/logout`, `GET /auth/me`,
   `GET /.well-known/jwks.json`. Access token in memory on the client, refresh token in an httpOnly,
   `SameSite=Strict` cookie (`qafe_rt`, path `AUTH_COOKIE_PATH`). Login is throttled in memory
-  (5 failures per account+IP, 20 per IP, 15 min); moves to Redis in phase 4.
+  (5 failures per account+IP, 20 per IP, 15 min); still in memory, to move to Redis.
 - **Staff sign-in**: `POST /auth/staff/login` (venue slug + username + password), `/auth/staff/refresh`,
   `/auth/staff/logout`, `/auth/staff/me`. Its refresh cookie is `qafe_srt` (admin: `qafe_rt`), and a
   staff session row carries `venue_id`/`member_id`, so refreshing runs in that venue's RLS context.
@@ -89,7 +89,7 @@ packages/
   db/           migrations (dbmate), Kysely types, RLS helper
   auth/         JWT verification, can('orders.cancel')
   observability/ OpenTelemetry setup
-  redis/        ioredis client, key prefixes, BullMQ queues
+  redis/        ioredis client, key prefixes (redisKey), fixed-window rate limit
   ui/           shared React components
 infra/docker/   service.Dockerfile (api, worker), web.Dockerfile + nginx.conf (frontends)
 docs/           requirements, DB schema + ERD, original start prompt
@@ -100,14 +100,16 @@ is for typechecking only. Apps depend on them with `workspace:*`.
 
 ## Commands
 
-| Command                             | What it does                                                    |
-| ----------------------------------- | --------------------------------------------------------------- |
-| `pnpm install`                      | install (pnpm 12 via corepack; run `corepack enable pnpm` once) |
-| `pnpm dev`                          | all apps in watch mode                                          |
-| `pnpm check`                        | lint, typecheck, test, build (turbo, cached)                    |
-| `pnpm turbo run <task> --affected`  | only packages changed vs `main` and their dependents            |
-| `pnpm format` / `pnpm format:check` | Prettier                                                        |
-| `pnpm --filter @qafe/api test`      | one package                                                     |
+| Command                                     | What it does                                                    |
+| ------------------------------------------- | --------------------------------------------------------------- |
+| `pnpm install`                              | install (pnpm 12 via corepack; run `corepack enable pnpm` once) |
+| `pnpm dev`                                  | all apps in watch mode                                          |
+| `pnpm check`                                | lint, typecheck, test, build (turbo, cached)                    |
+| `pnpm turbo run <task> --affected`          | only packages changed vs `main` and their dependents            |
+| `pnpm format` / `pnpm format:check`         | Prettier                                                        |
+| `pnpm --filter @qafe/api test`              | one package                                                     |
+| `make up` / `make down` / `make logs s=api` | whole stack in Docker behind Traefik (see "Docker")             |
+| `make dev`                                  | data services in Docker, apps on the host with hot reload       |
 
 ## Versions and tooling notes
 
@@ -136,11 +138,53 @@ is for typechecking only. Apps depend on them with `workspace:*`.
 ## Modules so far
 
 - `core`: auth (admin + staff), venues, users, modules, venue settings for the owner (`/venue`),
-  public venue lookup, `VenueDirectory` (public interface: does a venue exist).
+  areas/tables/QR codes (`/venue/areas`, `/venue/tables`, permission `tables.manage`), staff
+  accounts (`/venue/staff`, permission `staff.manage`), public venue lookup, `VenueDirectory`.
+  QR links come from `GUEST_URL_TEMPLATE` (`{slug}`, `{token}`); rotating a QR code replaces the
+  token, so the printed code stops working. Staff rules: nobody changes their own role or status,
+  only an owner hands out or changes the owner role, and a venue always keeps an active owner.
 - `catalog`: the menu (`/catalog/*` for staff, `/admin/venues/:venueId/catalog/*` for admins,
   FR-ADM-07). Every call runs in the venue's RLS context; every change goes to `catalog.outbox`.
   Prices are decimal strings ("2.50"); input accepts "2,5". Items are soft-deleted.
 - `audit`: read side of the audit log.
+- `ordering`: table sessions and orders. Guest API `/guest/*` (no login): `GuestGuard` takes the
+  venue from the host (`<slug>.<DOMAIN>`, `slugFromHost`) and the device from the host-only cookie
+  `qafe_gd` (only its HMAC with `GUEST_SESSION_SECRET` is stored as `device_hash`). First device
+  at a table is the host; later ones wait for the host or a waiter (`device_approval_required`);
+  one active session per device per venue (`active_elsewhere`, `leaveCurrent`); a session nobody
+  ordered in or looked at for 30 min is abandoned on the next scan. Verification: waiter mode
+  (first accepted order verifies the table) or PIN mode (4 digits, 5 tries / 10 min in Redis).
+  Orders are priced by catalog's `GuestMenuService.quote` from the database (snapshots in
+  `order_items`), numbered per business day (`next_order_number`, venue timezone and
+  `business_day_starts_at`), idempotent (201 new, 200 retry, 409 key of another device), and
+  limited to 2 unconfirmed per device and 5 per minute per table (session row lock). The bill counts
+  accepted orders without an open "Nije naše" dispute.
+- Staff API `/staff/*` (ordering, `StaffGuard` + permissions): `floor` (tables with status free /
+  occupied / needs_service / bill_requested), `orders` (live queue of open tables), `sessions/:id`
+  (detail with bill and `blockingOrders`), verify, approve / remove device (removal cancels its
+  unconfirmed orders and blocks it for `device_block_hours`), close an empty table, requests
+  acknowledge / done, order accept / serve / return (message) / reject (only with
+  `order_rejection_enabled`) / cancel, items add / remove / replace / cancel (each writes
+  `order_changes`, which the guest sees as "Izmijenjeno"), "Nije naše" confirm / cancel
+  (`orders.disputes`, owner only by default), manual order for a table (opens a verified session,
+  accepted at once, idempotent), push subscriptions. Shared writes are in `order-writes.ts`.
+- `billing`: `POST /staff/sessions/:id/pay` pays the whole table (cash or card, only enabled
+  methods) and closes it. Payment (billing schema) and session (ordering) are separate: payment
+  `pending` → `SessionLedger.closeAfterPayment` (ordering's public interface) re-checks the bill
+  under the session lock → `completed`, or `failed` with `bill_changed` / `open_orders`. Events go
+  to `billing.outbox`. Partial payments (V2) and fiscalisation (V3) are not built.
+- Realtime: Socket.IO gateway in `ordering` with the Redis adapter (`common/redis/redis-io.adapter.ts`).
+  Messages are hints (`session.changed`, `venue.changed`); clients refetch over HTTP. Guests are put
+  in `session:<id>` from the handshake cookie (the app reconnects after joining a table), staff in
+  `venue:<id>` with `auth.token`.
+- Redis (`@qafe/redis`, `common/redis`): guest menu cache (`qafe:catalog:guest-menu:<venue>`,
+  invalidated after every menu change, 5 min TTL), PIN attempts, Socket.IO fan-out. When Redis is
+  down the menu comes from Postgres; `/health/ready` reports Redis.
+- Worker relays `core`, `catalog`, `ordering` and `billing` outboxes. Guest order events are not
+  audited; staff actions on sessions and orders, payments and "Nije naše" reports are. The worker
+  also sends Web Push (`web-push`, VAPID keys from `pnpm keys:vapid`) to every staff device of the
+  venue for a guest's new order, waiter call, bill request or waiting device; gone subscriptions
+  (404/410) are deleted. Push never fails an outbox batch.
 - Images: `common/storage` (S3 / MinIO; `STORAGE_DRIVER=memory` in tests). Uploads are checked by
   their first bytes (JPEG, PNG, WebP), max 5 MB, stored as `venues/<id>/<items|logo>/<uuid>.<ext>`.
 
@@ -160,10 +204,57 @@ is for typechecking only. Apps depend on them with `workspace:*`.
 - `src/lib/api.ts` in each app is its only HTTP client: bearer token from memory, one shared refresh
   on 401 (admin: `/auth/refresh`, panel: `/auth/staff/refresh`).
 - Panel: login (venue slug + username), overview with setup checklist, menu editor (drag and drop
-  with dnd-kit, also by keyboard), modifier groups, item images, settings. What a member sees and
-  may change follows their permissions (`useCan`).
+  with dnd-kit, also by keyboard), modifier groups, item images, settings, space and QR (cards
+  printed six per A4 from `/tables/print`; the browser's print dialog saves a PDF), staff accounts
+  (password and/or PIN, shown once). What a member sees and may change follows their permissions
+  (`useCan`).
 - Dev: Vite proxies `/api/*` to the API (without `/api`), so `AUTH_COOKIE_PATH=/api/auth` locally.
   `API_PROXY_TARGET=http://localhost:3100` points a dev server at another API instance.
+
+## Guest app (apps/guest)
+
+- Open `http://<slug>.qafe.localhost:5173/t/<qr token>` (QR codes from the panel point there with the
+  local `GUEST_URL_TEMPLATE`). The Vite proxy keeps the Host header (`changeOrigin: false`) and
+  proxies WebSockets, as Traefik does in production.
+- No router library: `/t/<token>` joins and moves to `/`, which shows the session or the menu to
+  browse. TanStack Query for data, i18next (bs/en; English for phones not set to bs/hr/sr), a small
+  cart store in localStorage per host (survives refresh, keeps one idempotency key per cart).
+- `pnpm --filter @qafe/guest build` fails when the JavaScript is over 200 KB gzip (NFR-01,
+  `scripts/check-size.mjs`); currently about 122 KB. Service worker / offline PWA is not added yet.
+
+## Staff app (apps/staff)
+
+- `http://localhost:5174`: sign in with venue slug + username + password (PIN sign-in on a shared
+  device is postponed, see "Odgođene stavke"). Same stack as the panel (TanStack Router and Query,
+  i18next, `@qafe/ui`) plus `socket.io-client`.
+- "Spreman za rad" after every load unlocks sound (Web Audio beep, no file) and may ask for push
+  permission (FR-KON-02, 05). `public/sw.js` is a hand-written service worker for push only; it
+  writes the notification text in the app's language (the page posts it).
+- Pages: tables (`/`, area filter), orders (`/orders`, live queue), table (`/table/$tableId`:
+  verification and PIN, requests, devices, orders with all actions, bill, payment, close), menu
+  availability (`/menu`). Actions follow the member's permissions (`useCan`).
+- Realtime: the socket sends the access token on every (re)connect; `venue.changed` refetches and
+  rings for guest-caused changes. Offline mode (NFR-05) is not built yet.
+
+## Docker
+
+- `docker-compose.yml` is the whole stack: postgres, redis, minio (+ bucket/policy one-offs),
+  `migrate` (dbmate image with `packages/db/migrations`, runs before api and worker), api, worker,
+  guest, staff, panel, admin, and Traefik. Profiles: `infra` = data services only (for `pnpm dev`),
+  `app` = everything. Images are `${QAFE_IMAGE_PREFIX}-<app>:<tag>` (locally `qafe-api:local`).
+- Traefik routes by host: `<slug>.DOMAIN` guest (lowest priority), `staff.`, `panel.`, `admin.`,
+  `s3.` (MinIO for menu images), `DOMAIN` and `www.DOMAIN` the landing page (`apps/web`), and `/api/*` on every host to the api with `/api` stripped. So
+  every frontend calls its own origin (no CORS, host-only cookies, `AUTH_COOKIE_PATH=/api/auth`),
+  and the api reads the venue from the Host header. `RESERVED_SLUGS` (`@qafe/contracts`) keeps
+  those subdomains from becoming venue slugs.
+- Locally (`make up`): http://qafe.localhost (landing), http://admin.qafe.localhost, http://panel.qafe.localhost,
+  http://staff.qafe.localhost, http://<slug>.qafe.localhost; Traefik dashboard on :8081. The dev
+  override publishes ports on 127.0.0.1 and sets `COOKIE_SECURE=false` (http). Safari does not
+  resolve `*.localhost`: use Chrome or Firefox, or add hosts entries.
+- Production (`make prod-pull prod-up` on a server, `docker-compose.prod.yml`): images from GHCR,
+  HTTPS with a wildcard Let's Encrypt certificate (DNS challenge), restarts, no build. The release
+  workflow publishes `qafe-<app>` images and `qafe-migrate` (when `packages/db` is released).
+- Not in Docker yet: observability (OTel collector, Grafana) and backups.
 
 ## Phases
 
@@ -173,11 +264,15 @@ is for typechecking only. Apps depend on them with `workspace:*`.
    (list, detail, edit, status, modules), admin users (list, block, password reset),
    `GET /venues/:slug/public`; `audit` module (read side). Missing: OTel, staff login
    (slug + username, PIN), password change, TOTP.
-4. Remaining modules, `redis`, a BullMQ example job ← **worker started**: outbox relay → audit log.
+4. Remaining modules, `redis`, a BullMQ example job ← **ordering, billing and redis done**, worker
+   relays all outboxes to the audit log and sends Web Push. Missing: reporting, BullMQ jobs.
 5. Frontends ← **admin mostly done**, **panel started**: admin has login, overview, venues + venue
    page, modules, users, audit log (missing: menu UI for FR-ADM-07 (API ready), monitoring).
-   Panel has login, overview, menu, settings (missing: tables and QR, staff, orders, reports).
-   Guest and staff apps and PWA not started.
-6. Full Docker: compose (observability, apps, tools), Traefik, prod compose, Makefile
+   Panel has login, overview, menu, settings, space and QR, staff (missing: orders, reports).
+   Guest app done for MVP ordering (FR-GOS-01..04, 08..16, 20..27); staff app done for the MVP
+   waiter flow (FR-KON-01, 02, 04..13, 15..19, 21, 22) with push; offline mode (NFR-05) missing.
+6. Full Docker: compose (observability, apps, tools), Traefik, prod compose, Makefile ← **done
+   except observability and backups**
 
-Not yet: orders, menu, payments. Those follow `docs/requirements.md`.
+Not yet: reports and the panel's orders page, KDS, offline staff app. Those follow
+`docs/requirements.md`.

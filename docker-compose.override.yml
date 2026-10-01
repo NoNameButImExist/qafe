@@ -1,12 +1,39 @@
 # Development overrides (loaded automatically by `docker compose`).
-# Ports are bound to 127.0.0.1 only, never to all interfaces.
+# Ports are bound to 127.0.0.1 only, never to all interfaces. Local http, no TLS:
+# open http://panel.qafe.localhost, http://staff.qafe.localhost, http://<slug>.qafe.localhost.
 
 services:
   postgres:
     ports:
       - 127.0.0.1:${POSTGRES_PORT:-5432}:5432
 
+  redis:
+    ports:
+      - 127.0.0.1:${REDIS_PORT:-6379}:6379
+
   minio:
     ports:
       - 127.0.0.1:${MINIO_PORT:-9000}:9000
       - 127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001
+
+  api:
+    environment:
+      # http on *.localhost: cookies cannot be Secure-only here.
+      COOKIE_SECURE: 'false'
+      GUEST_URL_TEMPLATE: http://{slug}.${DOMAIN:-qafe.localhost}/t/{token}
+
+  traefik:
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=qafe_internal
+      - --entrypoints.web.address=:80
+      - --ping=true
+      - --log.level=INFO
+      - --accesslog=true
+      - --api.dashboard=true
+      - --api.insecure=true
+    ports:
+      - 127.0.0.1:${HTTP_PORT:-80}:80
+      # Dashboard: http://localhost:8081
+      - 127.0.0.1:${TRAEFIK_DASHBOARD_PORT:-8081}:8080

@@ -1,11 +1,16 @@
 import { TenantDatabase } from '@qafe/db';
+import webpush from 'web-push';
 import { AuditWriter } from './audit-writer.js';
 import { loadConfig } from './config.js';
 import { createHealthServer } from './health.js';
-import { OutboxRelay } from './outbox-relay.js';
+import { OutboxRelay, type OutboxEvent } from './outbox-relay.js';
+import { PushNotifier } from './push-notifier.js';
 
 const config = loadConfig();
-const connection = (module: 'core' | 'catalog' | 'audit', password: string) =>
+const connection = (
+  module: 'core' | 'catalog' | 'ordering' | 'billing' | 'audit',
+  password: string,
+) =>
   new TenantDatabase({
     host: config.POSTGRES_HOST,
     port: config.POSTGRES_PORT,
@@ -18,14 +23,43 @@ const connection = (module: 'core' | 'catalog' | 'audit', password: string) =>
 
 const core = connection('core', config.SVC_CORE_PASSWORD);
 const catalog = connection('catalog', config.SVC_CATALOG_PASSWORD);
+const ordering = connection('ordering', config.SVC_ORDERING_PASSWORD);
+const billing = connection('billing', config.SVC_BILLING_PASSWORD);
 const audit = connection('audit', config.SVC_AUDIT_PASSWORD);
 
-// Outboxes of ordering and billing join here when those modules start publishing.
 const sources = [
   { schema: 'core', db: core },
   { schema: 'catalog', db: catalog },
+  { schema: 'ordering', db: ordering },
+  { schema: 'billing', db: billing },
 ];
-const relay = new OutboxRelay(sources, new AuditWriter(audit).handle, {
+
+const auditWriter = new AuditWriter(audit);
+const push =
+  config.VAPID_PUBLIC_KEY && config.VAPID_PRIVATE_KEY
+    ? new PushNotifier(
+        ordering,
+        (target, payload) =>
+          webpush.sendNotification(target, payload, {
+            vapidDetails: {
+              subject: config.VAPID_SUBJECT,
+              publicKey: config.VAPID_PUBLIC_KEY!,
+              privateKey: config.VAPID_PRIVATE_KEY!,
+            },
+            TTL: 300,
+            urgency: 'high',
+          }),
+        (error) => console.error('[push] send failed:', error),
+      )
+    : null;
+
+// The audit log first (a failure retries the batch), then notifications (best effort).
+const handle = async (events: OutboxEvent[]) => {
+  await auditWriter.handle(events);
+  await push?.handle(events);
+};
+
+const relay = new OutboxRelay(sources, handle, {
   batchSize: 100,
   intervalMs: config.OUTBOX_POLL_MS,
   onError: (error) => console.error('[outbox] relay failed, retrying:', error),
@@ -35,14 +69,20 @@ relay.start();
 const server = createHealthServer();
 server.listen(config.PORT, '0.0.0.0');
 console.log(
-  `[worker] relaying ${sources.map((s) => `${s.schema}.outbox`).join(', ')} every ${config.OUTBOX_POLL_MS} ms; health on :${config.PORT}`,
+  `[worker] relaying ${sources.map((s) => `${s.schema}.outbox`).join(', ')} every ${config.OUTBOX_POLL_MS} ms; web push ${push ? 'on' : 'off (no VAPID keys)'}; health on :${config.PORT}`,
 );
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, () => {
     void (async () => {
       await relay.stop();
-      await Promise.all([core.close(), catalog.close(), audit.close()]);
+      await Promise.all([
+        core.close(),
+        catalog.close(),
+        ordering.close(),
+        billing.close(),
+        audit.close(),
+      ]);
       server.close(() => process.exit(0));
     })();
   });

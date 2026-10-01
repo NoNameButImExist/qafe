@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toAuditRow } from './audit-writer.js';
+import { isAudited, toAuditRow } from './audit-writer.js';
 import type { OutboxEvent } from './outbox-relay.js';
 
 const ADMIN = { id: '11111111-1111-4111-8111-111111111111', label: 'Qafe Admin (admin@qafe.ba)' };
@@ -124,5 +124,34 @@ describe('toAuditRow', () => {
       ),
     );
     expect(row).toMatchObject({ venue_id: VENUE, venue_label: 'Fildžan' });
+  });
+
+  it('audits staff actions on orders and disputes, not every guest order', () => {
+    const ordering = (type: string, actorKind: 'guest' | 'staff') => ({
+      ...event(type, {
+        venueId: VENUE,
+        sessionId: '55555555-5555-4555-8555-555555555555',
+        tableId: '66666666-6666-4666-8666-666666666666',
+        tableLabel: 'T4',
+        entityId: '77777777-7777-4777-8777-777777777777',
+        orderNumber: 12,
+        total: '7.00',
+        actor: { id: ADMIN.id, label: actorKind === 'staff' ? 'Amra' : 'Gost 1 (sto T4)' },
+        actorKind,
+      }),
+      source: 'ordering',
+    });
+    expect(isAudited(ordering('order.created', 'guest'))).toBe(false);
+    expect(isAudited(ordering('order.disputed', 'guest'))).toBe(true);
+    expect(isAudited(ordering('order.accepted', 'staff'))).toBe(true);
+    expect(isAudited(event('venue.created', {}))).toBe(true);
+
+    expect(toAuditRow(ordering('order.accepted', 'staff'))).toMatchObject({
+      service: 'ordering',
+      entity_type: 'order',
+      entity_id: '77777777-7777-4777-8777-777777777777',
+      actor_label: 'Amra',
+      new_values: JSON.stringify({ table: 'T4', number: 12, total: '7.00' }),
+    });
   });
 });

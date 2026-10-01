@@ -1,10 +1,13 @@
 import { createRootRoute, createRoute, createRouter, Outlet } from '@tanstack/react-router';
-import { ProtectedLayout } from './components/AppShell';
+import { ProtectedBare, ProtectedLayout } from './components/AppShell';
 import i18n from './i18n';
 import { ComingSoonPage } from './pages/ComingSoonPage';
 import { LoginPage } from './pages/LoginPage';
 import { MenuPage } from './pages/MenuPage';
 import { OverviewPage } from './pages/OverviewPage';
+import { QrPrintPage } from './pages/QrPrintPage';
+import { StaffPage } from './pages/StaffPage';
+import { TablesPage } from './pages/TablesPage';
 import { SettingsPage } from './pages/SettingsPage';
 
 const rootRoute = createRootRoute({ component: Outlet });
@@ -24,8 +27,10 @@ const appRoute = createRoute({
   component: ProtectedLayout,
 });
 
-const page = (path: '/' | '/menu' | '/settings', component: () => React.ReactNode) =>
-  createRoute({ getParentRoute: () => appRoute, path, component });
+const page = (
+  path: '/' | '/menu' | '/settings' | '/tables' | '/staff',
+  component: () => React.ReactNode,
+) => createRoute({ getParentRoute: () => appRoute, path, component });
 
 /** Sections planned by the requirements; placeholders until they are built. */
 const soon = (
@@ -39,14 +44,31 @@ const soon = (
     component: () => <ComingSoonPage title={i18n.t(titleKey as 'nav.tables')} refs={refs} />,
   });
 
+/** Signed-in pages without the app chrome (print layouts). */
+const printRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: 'print',
+  component: ProtectedBare,
+});
+
+const qrPrintRoute = createRoute({
+  getParentRoute: () => printRoute,
+  path: '/tables/print',
+  validateSearch: (search: Record<string, unknown>): { ids?: string } => ({
+    ids: typeof search.ids === 'string' && search.ids ? search.ids : undefined,
+  }),
+  component: QrPrintPage,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
+  printRoute.addChildren([qrPrintRoute]),
   appRoute.addChildren([
     page('/', OverviewPage),
     page('/menu', MenuPage),
     page('/settings', SettingsPage),
-    soon('/tables', 'nav.tables', 'FR-SEF-11, FR-SEF-15, FR-SEF-16'),
-    soon('/staff', 'nav.staff', 'FR-SEF-08, FR-SEF-09'),
+    page('/tables', TablesPage),
+    page('/staff', StaffPage),
     soon('/orders', 'nav.orders', 'FR-SEF-23'),
     soon('/reports', 'nav.reports', 'FR-SEF-24, FR-SEF-25'),
   ]),

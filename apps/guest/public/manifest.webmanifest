@@ -1,0 +1,8 @@
+{
+  "name": "Qafe.ba meni",
+  "short_name": "Meni",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f5f7",
+  "theme_color": "#0B1F3F"
+}

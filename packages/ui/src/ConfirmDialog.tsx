@@ -37,7 +37,10 @@ export function ConfirmDialog({
   return (
     <dialog
       ref={ref}
-      onClose={onClose}
+      // React passes a nested dialog's close event up to this one; react only to our own.
+      onClose={(e) => {
+        if (e.target === ref.current) onClose();
+      }}
       aria-labelledby="confirm-title"
       className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-line bg-surface p-0 text-ink shadow-2xl backdrop:bg-navy-950/60"
     >

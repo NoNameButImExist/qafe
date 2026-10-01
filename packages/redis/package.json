@@ -3,7 +3,7 @@
   "version": "0.2.1",
   "private": true,
   "type": "module",
-  "description": "Redis client, key prefixes per module and BullMQ queue factory.",
+  "description": "Redis client, key prefixes per module and rate limiting.",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -24,5 +24,8 @@
     "@types/node": "^24.19.0",
     "typescript": "~6.0.3",
     "vitest": "^5.0.2"
+  },
+  "dependencies": {
+    "ioredis": "^6.0.0"
   }
 }

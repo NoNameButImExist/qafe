@@ -16,7 +16,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky",
-    "docker:infra": "docker compose --profile infra up -d --wait postgres minio && docker compose --profile infra up --no-log-prefix minio-bucket minio-policy",
+    "docker:infra": "docker compose --profile infra up -d --wait postgres redis minio && docker compose --profile infra up --no-log-prefix minio-bucket minio-policy",
+    "docker:up": "docker compose --profile app up -d --build",
     "docker:down": "docker compose --profile '*' down",
     "docker:logs": "docker compose --profile '*' logs -f",
     "db:migrate": "pnpm --filter @qafe/db db:migrate",
@@ -26,6 +27,7 @@
     "db:codegen": "pnpm --filter @qafe/db db:codegen && prettier --write packages/db/src/generated",
     "db:seed": "pnpm --filter @qafe/db build && pnpm --filter @qafe/auth build && pnpm --filter @qafe/db db:seed",
     "keys:generate": "node scripts/generate-jwt-keys.mjs",
+    "keys:vapid": "pnpm --silent --filter @qafe/worker exec web-push generate-vapid-keys",
     "test:integration": "turbo run test:integration"
   },
   "prettier": "@qafe/config/prettier",

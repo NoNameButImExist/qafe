@@ -12,11 +12,24 @@ import { CoreHealth } from './core.health.js';
 import { PublicVenuesController } from './venues/public-venues.controller.js';
 import { VenueDirectory } from './venue-directory.js';
 import { VenueSettingsController } from './venue/venue-settings.controller.js';
+import {
+  VenueSpaceController,
+  VenueStaffController,
+} from './venue/venue-space-staff.controller.js';
+import { SpaceService } from './space/space.service.js';
+import { StaffService } from './staff/staff.service.js';
 import { VenueSettingsService } from './venue/venue-settings.service.js';
 
 /** Venues, staff, roles, spaces and authentication (schema "core"). */
 @Module({
-  controllers: [AuthController, AdminController, PublicVenuesController, VenueSettingsController],
+  controllers: [
+    AuthController,
+    AdminController,
+    PublicVenuesController,
+    VenueSettingsController,
+    VenueSpaceController,
+    VenueStaffController,
+  ],
   providers: [
     CoreDatabase,
     CoreHealth,
@@ -25,6 +38,8 @@ import { VenueSettingsService } from './venue/venue-settings.service.js';
     AdminVenuesService,
     AdminUsersService,
     VenueSettingsService,
+    SpaceService,
+    StaffService,
     VenueDirectory,
     {
       provide: TOKEN_SIGNER,

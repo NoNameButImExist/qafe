@@ -5,6 +5,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AuditWriter } from './audit-writer.js';
 import { OutboxRelay } from './outbox-relay.js';
+import { PushNotifier } from './push-notifier.js';
 
 const ACTOR = { id: '11111111-1111-4111-8111-111111111111', label: 'Qafe Admin (admin@qafe.ba)' };
 const VENUE = '22222222-2222-4222-8222-222222222222';
@@ -103,5 +104,59 @@ describe('outbox relay → audit log', () => {
         trx.deleteFrom('audit.audit_logs').execute(),
       ),
     ).rejects.toThrow(/permission denied/);
+  });
+});
+
+describe('web push for staff (FR-KON-05)', () => {
+  it('notifies every staff device of the venue and forgets gone subscriptions', async () => {
+    const ordering = new TenantDatabase(testDb.connection('ordering'));
+    try {
+      const member = '33333333-3333-4333-8333-333333333333';
+      for (const name of ['live', 'gone']) {
+        await admin.query(
+          `INSERT INTO ordering.push_subscriptions (venue_id, member_id, endpoint, p256dh, auth)
+           VALUES ($1, $2, $3, 'key', 'auth')`,
+          [VENUE, member, `https://push.example.com/${name}`],
+        );
+      }
+      const sent: { endpoint: string; payload: string }[] = [];
+      const notifier = new PushNotifier(ordering, (target, payload) => {
+        sent.push({ endpoint: target.endpoint, payload });
+        return target.endpoint.endsWith('/gone')
+          ? Promise.reject(Object.assign(new Error('Gone'), { statusCode: 410 }))
+          : Promise.resolve();
+      });
+      await notifier.handle([
+        {
+          source: 'ordering',
+          id: '1',
+          venueId: VENUE,
+          type: 'service.requested',
+          aggregateId: VENUE,
+          createdAt: new Date(),
+          payload: {
+            type: 'service.requested',
+            venueId: VENUE,
+            sessionId: '55555555-5555-4555-8555-555555555555',
+            tableId: '66666666-6666-4666-8666-666666666666',
+            tableLabel: 'T4',
+            entityId: '77777777-7777-4777-8777-777777777777',
+            actor: { id: ACTOR.id, label: 'Gost 1 (sto T4)' },
+            actorKind: 'guest',
+          },
+        },
+      ]);
+      expect(sent.map((s) => s.endpoint).sort()).toEqual([
+        'https://push.example.com/gone',
+        'https://push.example.com/live',
+      ]);
+      expect(JSON.parse(sent[0]!.payload)).toMatchObject({ type: 'call_waiter', tableLabel: 'T4' });
+      const left = await admin.query<{ endpoint: string }>(
+        'SELECT endpoint FROM ordering.push_subscriptions',
+      );
+      expect(left.rows).toEqual([{ endpoint: 'https://push.example.com/live' }]);
+    } finally {
+      await ordering.close();
+    }
   });
 });

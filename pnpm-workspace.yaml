@@ -17,5 +17,7 @@ minimumReleaseAgeExclude:
   - '@nestjs/common@12.1.2'
   - '@nestjs/core@12.1.2'
   - '@nestjs/platform-fastify@12.1.2'
+  - '@nestjs/platform-socket.io@12.1.2'
   - '@nestjs/testing@12.1.2'
+  - '@nestjs/websockets@12.1.2'
   - lucide-react@1.49.0

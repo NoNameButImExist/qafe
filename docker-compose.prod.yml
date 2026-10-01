@@ -1,0 +1,100 @@
+# Production on one server, with images from GHCR (built and pushed by the Release workflow):
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile app pull
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile app up -d
+#   (or: make prod-pull prod-up)
+#
+# The server's .env (never in git) sets, besides the secrets:
+#   DOMAIN=qafe.ba
+#   QAFE_IMAGE_PREFIX=ghcr.io/<owner>/qafe     QAFE_TAG=latest   (or API_TAG=0.3.0, ...)
+#   ACME_EMAIL=...   ACME_DNS_PROVIDER=cloudflare   CF_DNS_API_TOKEN=...
+# Guests use <slug>.DOMAIN, so the certificate is a wildcard: Let's Encrypt DNS challenge.
+
+services:
+  postgres:
+    restart: always
+  redis:
+    restart: always
+  minio:
+    restart: always
+    labels:
+      traefik.http.routers.s3.entrypoints: websecure
+      traefik.http.routers.s3.tls.certresolver: le
+
+  # Images come from the registry; the server never builds.
+  migrate:
+    build: !reset null
+  api:
+    build: !reset null
+    restart: always
+    environment:
+      COOKIE_SECURE: 'true'
+    labels:
+      traefik.http.routers.api.entrypoints: websecure
+      traefik.http.routers.api.tls.certresolver: le
+  worker:
+    build: !reset null
+    restart: always
+  guest:
+    build: !reset null
+    restart: always
+    labels:
+      traefik.http.routers.guest.entrypoints: websecure
+      traefik.http.routers.guest.tls.certresolver: le
+      # One wildcard certificate for every venue subdomain.
+      traefik.http.routers.guest.tls.domains[0].main: ${DOMAIN}
+      traefik.http.routers.guest.tls.domains[0].sans: '*.${DOMAIN}'
+  staff:
+    build: !reset null
+    restart: always
+    labels:
+      traefik.http.routers.staff.entrypoints: websecure
+      traefik.http.routers.staff.tls.certresolver: le
+  panel:
+    build: !reset null
+    restart: always
+    labels:
+      traefik.http.routers.panel.entrypoints: websecure
+      traefik.http.routers.panel.tls.certresolver: le
+  admin:
+    build: !reset null
+    restart: always
+    labels:
+      traefik.http.routers.admin.entrypoints: websecure
+      traefik.http.routers.admin.tls.certresolver: le
+
+  web:
+    build: !reset null
+    restart: always
+    labels:
+      traefik.http.routers.web.entrypoints: websecure
+      traefik.http.routers.web.tls.certresolver: le
+
+  traefik:
+    restart: always
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=qafe_internal
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.le.acme.email=${ACME_EMAIL:?Set ACME_EMAIL}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.le.acme.dnschallenge.provider=${ACME_DNS_PROVIDER:?Set ACME_DNS_PROVIDER}
+      - --ping=true
+      - --log.level=WARN
+      - --accesslog=true
+    environment:
+      # Credentials of the DNS provider for the wildcard certificate (Cloudflare here).
+      CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN:-}
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - letsencrypt:/letsencrypt
+
+volumes:
+  letsencrypt:

@@ -7,8 +7,9 @@
 
 import { execFileSync } from 'node:child_process';
 
-// Deployable apps and their Dockerfile. Workspace packages have no image of their own;
-// a change there reaches the images through turbo (CI) or node-workspace bumps (release).
+// Deployable apps and their Dockerfile. Workspace packages have no image of their own (a
+// change there reaches the images through turbo or node-workspace bumps), except packages/db:
+// its migrations ship as the "migrate" image.
 const IMAGES = {
   'apps/api': 'infra/docker/service.Dockerfile',
   'apps/worker': 'infra/docker/service.Dockerfile',
@@ -17,10 +18,12 @@ const IMAGES = {
   'apps/panel': 'infra/docker/web.Dockerfile',
   'apps/admin': 'infra/docker/web.Dockerfile',
   'apps/web': 'infra/docker/web.Dockerfile',
+  'packages/db': 'infra/docker/migrate.Dockerfile',
 };
+const NAMES = { 'packages/db': 'migrate' };
 
 const entry = (path, extra = {}) => ({
-  app: path.split('/')[1],
+  app: NAMES[path] ?? path.split('/')[1],
   dockerfile: IMAGES[path],
   ...extra,
 });
