@@ -1,2 +1,18 @@
-// Shared React components (shadcn/ui based). Implemented in phase 5.
-export {};
+export { AuthBrandPanel } from './AuthBrandPanel';
+export { Brand } from './Brand';
+export { Button } from './Button';
+export { Card, SectionTitle } from './Card';
+export { cn } from './cn';
+export { ConfirmDialog } from './ConfirmDialog';
+export { CopyRow } from './CopyRow';
+export { Field, Input, Select, Textarea } from './Field';
+export { Menu, MenuItem } from './Menu';
+export { Notice } from './Notice';
+export { Pagination } from './Pagination';
+export { LanguageSwitch, ThemeToggle } from './Preferences';
+export { Segmented } from './Segmented';
+export { Sheet } from './Sheet';
+export { StatusBadge } from './StatusBadge';
+export { Switch } from './Switch';
+export { applyTheme, useTheme, type ThemePreference } from './theme';
+export { useNotice, type NoticeMessage } from './useNotice';

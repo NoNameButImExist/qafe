@@ -24,6 +24,35 @@ The database, Redis and the full Docker stack are added in later phases (see [CL
 | `pnpm format`                                                           | format everything with Prettier                  |
 | `docker build -f infra/docker/service.Dockerfile --build-arg APP=api .` | backend image (`api`, `worker`)                  |
 | `docker build -f infra/docker/web.Dockerfile --build-arg APP=guest .`   | frontend image (guest, staff, panel, admin, web) |
+Needs Node 24 (`fnm use` / `nvm use` reads `.nvmrc`), `corepack enable pnpm` once, and Docker.
+
+1. `pnpm install`
+2. `cp .env.example .env`, then fill in the passwords (any values for local work) and set
+   `SEED_ADMIN_PASSWORD`; for the admin app behind the Vite proxy set `AUTH_COOKIE_PATH=/api/auth`
+3. `pnpm keys:generate` (JWT signing keys in `secrets/`, git-ignored)
+4. `pnpm docker:infra && pnpm db:migrate && pnpm db:seed` (Postgres and MinIO in Docker)
+5. `pnpm dev`
+
+| App           | URL                                | Sign in                                                            |
+| ------------- | ---------------------------------- | ------------------------------------------------------------------ |
+| Admin         | http://localhost:5176              | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`                         |
+| Panel (venue) | http://localhost:5175              | venue `demo-kafic`, user `sef` or `konobar`, `SEED_STAFF_PASSWORD` |
+| API           | http://localhost:3000/health/ready |                                                                    |
+| MinIO console | http://localhost:9001              | `S3_ACCESS_KEY` / `S3_SECRET_KEY`                                  |
+
+## Common commands
+
+| Command                                             | What it does                                         |
+| --------------------------------------------------- | ---------------------------------------------------- |
+| `pnpm check`                                        | lint, typecheck, unit tests and build                |
+| `pnpm test:integration`                             | tests against real Postgres (Docker, Testcontainers) |
+| `pnpm turbo run test --affected`                    | only packages changed vs `main`                      |
+| `pnpm db:migrate` / `db:rollback` / `db:status`     | dbmate migrations in `packages/db/migrations`        |
+| `pnpm db:reset`                                     | drop the database and migrate again                  |
+| `pnpm db:codegen`                                   | regenerate Kysely types after a migration            |
+| `pnpm db:seed`                                      | platform admin + "Demo kafić" (development only)     |
+| `pnpm docker:infra` / `docker:down` / `docker:logs` | local Postgres (more services in phase 6)            |
+| `pnpm format`                                       | Prettier                                             |
 
 ## Releases
 

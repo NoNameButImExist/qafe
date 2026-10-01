@@ -22,6 +22,10 @@
       "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
+    },
+    "test:integration": {
+      "dependsOn": ["^build"],
+      "outputs": []
     }
   }
 }

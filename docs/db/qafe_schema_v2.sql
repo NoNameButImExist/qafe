@@ -24,6 +24,9 @@
 --  koje kreira taj isti role, pa sve buduće migracije pokreće on.
 --
 --  PostgreSQL 16
+--
+--  Izvršna kopija: packages/db/migrations/20260930120000_initial_schema.sql.
+--  Ovaj fajl opisuje dizajn v2; svaka sljedeća promjena ide kao nova migracija.
 -- =====================================================================
 
 -- migrate:up

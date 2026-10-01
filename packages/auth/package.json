@@ -1,6 +1,6 @@
 {
   "name": "@qafe/auth",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "JWT verification and permission checks, e.g. can('orders.cancel').",
@@ -24,5 +24,9 @@
     "@types/node": "^24.19.0",
     "typescript": "~6.0.3",
     "vitest": "^5.0.2"
+  },
+  "dependencies": {
+    "@node-rs/argon2": "^2.2.1",
+    "jose": "^6.2.12"
   }
 }

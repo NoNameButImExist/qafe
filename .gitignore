@@ -45,8 +45,6 @@ Thumbs.db
 !.vscode/extensions.json
 !.vscode/settings.json
 
-# generisano
-packages/db/src/generated/
 
 # Capacitor (kasnije)
 android/app/build/

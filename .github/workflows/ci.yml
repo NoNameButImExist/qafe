@@ -59,6 +59,32 @@ jobs:
         id: images
         run: node .github/scripts/image-matrix.mjs affected >> "$GITHUB_OUTPUT"
 
+  integration:
+    name: Integration tests (Postgres, RLS)
+    # NFR-09: venue isolation is tested against a real Postgres on every PR (Testcontainers).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Integration tests
+        run: |
+          if [[ -z "$TURBO_SCM_BASE" || "$TURBO_SCM_BASE" =~ ^0+$ ]]; then
+            pnpm turbo run test:integration
+          else
+            pnpm turbo run test:integration --affected
+          fi
+
   docker:
     name: Docker build (${{ matrix.app }})
     needs: verify

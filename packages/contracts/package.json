@@ -1,6 +1,6 @@
 {
   "name": "@qafe/contracts",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Zod schemas shared by API and events (API DTOs, event types).",
@@ -24,5 +24,8 @@
     "@types/node": "^24.19.0",
     "typescript": "~6.0.3",
     "vitest": "^5.0.2"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
   }
 }
