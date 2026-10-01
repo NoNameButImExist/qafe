@@ -1,6 +1,19 @@
-# Base definition: services, networks, volumes, health checks.
-# docker-compose.override.yml (dev) is loaded automatically and opens ports to the host.
-# More services (redis, nats, minio, observability, apps) are added in phase 6.
+# Base definition of the whole stack: data services, migrations, api, worker, the four
+# frontends and Traefik in front of them.
+#
+#   docker compose --profile infra up -d     data services only (Postgres, Redis, MinIO) for `pnpm dev`
+#   docker compose --profile app up -d       everything (the Makefile wraps this: `make up`)
+#
+# docker-compose.override.yml (dev) is loaded automatically: host ports, http without TLS.
+# docker-compose.prod.yml replaces it on a server: images from GHCR, HTTPS, restarts.
+#
+# Routing (Traefik, tenant from the host):
+#   <slug>.DOMAIN            guest app          <any host>/api/*  api (without /api)
+#   staff.DOMAIN             staff app          panel.DOMAIN      venue panel
+#   admin.DOMAIN             platform admin     s3.DOMAIN         menu images (MinIO)
+#   DOMAIN, www.DOMAIN       public landing page (apps/web)
+#
+# Images are <QAFE_IMAGE_PREFIX>-<app>:<tag>; locally qafe-api:local etc. (built here).
 
 name: qafe
 
@@ -10,10 +23,25 @@ x-logging: &logging
     max-size: 10m
     max-file: '3'
 
+# Shared by api and worker: everything comes from .env, the addresses are the containers'.
+x-backend-env: &backend-env
+  NODE_ENV: production
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: 5432
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+
+x-web: &web
+  profiles: [app]
+  restart: unless-stopped
+  networks: [internal]
+  logging: *logging
+
 services:
+  # ---------------------------------------------------------------- data services
   postgres:
     image: postgres:16-alpine
-    profiles: [infra]
+    profiles: [infra, app]
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-qafe}
@@ -36,11 +64,30 @@ services:
     networks: [internal]
     logging: *logging
 
+  # Cache, rate limits and realtime fan-out. Never a source of truth: losing it loses no data.
+  redis:
+    image: redis:8.6-alpine
+    profiles: [infra, app]
+    restart: unless-stopped
+    command:
+      - sh
+      - -c
+      - exec redis-server --requirepass "$$REDIS_PASSWORD" --appendonly no --maxmemory 256mb --maxmemory-policy allkeys-lru
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+    healthcheck:
+      test: ['CMD-SHELL', 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [internal]
+    logging: *logging
+
   # S3-compatible storage for menu images and logos. The minio/minio image is no longer
   # published on Docker Hub; Chainguard builds MinIO from source (only :latest is free).
   minio:
     image: cgr.dev/chainguard/minio:latest
-    profiles: [infra]
+    profiles: [infra, app]
     restart: unless-stopped
     command: ['server', '/data', '--console-address', ':9001']
     environment:
@@ -58,13 +105,19 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    labels:
+      # Browsers load menu images from s3.DOMAIN (read-only bucket policy, see minio-policy).
+      traefik.enable: 'true'
+      traefik.http.routers.s3.rule: Host(`s3.${DOMAIN:-qafe.localhost}`)
+      traefik.http.routers.s3.entrypoints: web
+      traefik.http.services.s3.loadbalancer.server.port: '9000'
     networks: [internal]
     logging: *logging
 
   # One-off: creates the bucket (the client image has no shell, so one command per service).
   minio-bucket:
     image: cgr.dev/chainguard/minio-client:latest
-    profiles: [infra]
+    profiles: [infra, app]
     command: ['mb', '--ignore-existing', 'qafe/${S3_BUCKET_MENU_IMAGES:-menu-images}']
     environment:
       MC_HOST_qafe: http://${S3_ACCESS_KEY}:${S3_SECRET_KEY}@minio:9000
@@ -76,7 +129,7 @@ services:
   # One-off: anyone may read images (keys are random UUIDs); only the API writes.
   minio-policy:
     image: cgr.dev/chainguard/minio-client:latest
-    profiles: [infra]
+    profiles: [infra, app]
     command: ['anonymous', 'set', 'download', 'qafe/${S3_BUCKET_MENU_IMAGES:-menu-images}']
     environment:
       MC_HOST_qafe: http://${S3_ACCESS_KEY}:${S3_SECRET_KEY}@minio:9000
@@ -84,6 +137,173 @@ services:
       minio-bucket:
         condition: service_completed_successfully
     networks: [internal]
+
+  # ---------------------------------------------------------------- application
+  # One-off: database migrations (dbmate) before api and worker start.
+  migrate:
+    image: ${QAFE_IMAGE_PREFIX:-qafe}-migrate:${MIGRATE_TAG:-${QAFE_TAG:-local}}
+    build:
+      context: .
+      dockerfile: infra/docker/migrate.Dockerfile
+    profiles: [app]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_ADMIN_USER:-qafe_admin}:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/${POSTGRES_DB:-qafe}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+    logging: *logging
+
+  api:
+    image: ${QAFE_IMAGE_PREFIX:-qafe}-api:${API_TAG:-${QAFE_TAG:-local}}
+    build:
+      context: .
+      dockerfile: infra/docker/service.Dockerfile
+      args: { APP: api }
+    profiles: [app]
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      <<: *backend-env
+      PORT: 3000
+      S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_URL: ${S3_PUBLIC_URL_DOCKER:-http://s3.${DOMAIN:-qafe.localhost}/${S3_BUCKET_MENU_IMAGES:-menu-images}}
+      # The browser sees /api/auth (Traefik strips /api before the api).
+      AUTH_COOKIE_PATH: /api/auth
+      GUEST_URL_TEMPLATE: ${GUEST_URL_TEMPLATE_DOCKER:-https://{slug}.${DOMAIN:-qafe.localhost}/t/{token}}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+    volumes:
+      # JWT keys (pnpm keys:generate); relative key paths in .env resolve under /app.
+      - ./secrets:/app/secrets:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    labels:
+      traefik.enable: 'true'
+      # Every frontend calls its own origin under /api (same-origin cookies, no CORS).
+      traefik.http.routers.api.rule: HostRegexp(`^[a-z0-9-]+\.${DOMAIN:-qafe.localhost}$$`) && PathPrefix(`/api`)
+      traefik.http.routers.api.priority: '100'
+      traefik.http.routers.api.entrypoints: web
+      traefik.http.routers.api.middlewares: strip-api
+      traefik.http.middlewares.strip-api.stripprefix.prefixes: /api
+      traefik.http.services.api.loadbalancer.server.port: '3000'
+    networks: [internal]
+    logging: *logging
+
+  worker:
+    image: ${QAFE_IMAGE_PREFIX:-qafe}-worker:${WORKER_TAG:-${QAFE_TAG:-local}}
+    build:
+      context: .
+      dockerfile: infra/docker/service.Dockerfile
+      args: { APP: worker }
+    profiles: [app]
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      <<: *backend-env
+      PORT: 3000
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [internal]
+    logging: *logging
+
+  guest:
+    <<: *web
+    image: ${QAFE_IMAGE_PREFIX:-qafe}-guest:${GUEST_TAG:-${QAFE_TAG:-local}}
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+      args: { APP: guest }
+    labels:
+      traefik.enable: 'true'
+      # Any other subdomain is a venue: lowest priority, after the app hosts below.
+      traefik.http.routers.guest.rule: HostRegexp(`^[a-z0-9-]+\.${DOMAIN:-qafe.localhost}$$`)
+      traefik.http.routers.guest.priority: '1'
+      traefik.http.routers.guest.entrypoints: web
+      traefik.http.services.guest.loadbalancer.server.port: '8080'
+
+  staff:
+    <<: *web
+    image: ${QAFE_IMAGE_PREFIX:-qafe}-staff:${STAFF_TAG:-${QAFE_TAG:-local}}
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+      args: { APP: staff }
+    labels:
+      traefik.enable: 'true'
+      traefik.http.routers.staff.rule: Host(`staff.${DOMAIN:-qafe.localhost}`)
+      traefik.http.routers.staff.entrypoints: web
+      traefik.http.services.staff.loadbalancer.server.port: '8080'
+
+  panel:
+    <<: *web
+    image: ${QAFE_IMAGE_PREFIX:-qafe}-panel:${PANEL_TAG:-${QAFE_TAG:-local}}
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+      args: { APP: panel }
+    labels:
+      traefik.enable: 'true'
+      traefik.http.routers.panel.rule: Host(`panel.${DOMAIN:-qafe.localhost}`)
+      traefik.http.routers.panel.entrypoints: web
+      traefik.http.services.panel.loadbalancer.server.port: '8080'
+
+  admin:
+    <<: *web
+    image: ${QAFE_IMAGE_PREFIX:-qafe}-admin:${ADMIN_TAG:-${QAFE_TAG:-local}}
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+      args: { APP: admin }
+    labels:
+      traefik.enable: 'true'
+      traefik.http.routers.admin.rule: Host(`admin.${DOMAIN:-qafe.localhost}`)
+      traefik.http.routers.admin.entrypoints: web
+      traefik.http.services.admin.loadbalancer.server.port: '8080'
+
+  # Public landing page for venue owners and guests.
+  web:
+    <<: *web
+    image: ${QAFE_IMAGE_PREFIX:-qafe}-web:${WEB_TAG:-${QAFE_TAG:-local}}
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+      args: { APP: web }
+    labels:
+      traefik.enable: 'true'
+      traefik.http.routers.web.rule: Host(`${DOMAIN:-qafe.localhost}`) || Host(`www.${DOMAIN:-qafe.localhost}`)
+      traefik.http.routers.web.priority: '50'
+      traefik.http.routers.web.entrypoints: web
+      traefik.http.services.web.loadbalancer.server.port: '8080'
+
+  # Reverse proxy: routes by host and path, WebSockets included. Reads the labels above.
+  traefik:
+    image: traefik:v3.7
+    profiles: [app]
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=qafe_internal
+      - --entrypoints.web.address=:80
+      - --ping=true
+      - --log.level=INFO
+      - --accesslog=true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      test: ['CMD', 'traefik', 'healthcheck', '--ping']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    depends_on: [api, guest, staff, panel, admin, web]
+    networks: [internal]
+    logging: *logging
 
 networks:
   internal:

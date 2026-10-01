@@ -26,3 +26,14 @@ export function venueHost(slug: string): string {
   const domain = (import.meta.env.VITE_PUBLIC_DOMAIN as string | undefined) ?? 'qafe.ba';
   return `${slug}.${domain}`;
 }
+
+export function formatDate(iso: string, language: string): string {
+  const date = new Date(iso);
+  // Some runtimes lack Bosnian date names; numeric dates read the same everywhere.
+  if (language === 'bs') return `${date.getDate()}. ${date.getMonth() + 1}. ${date.getFullYear()}.`;
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}

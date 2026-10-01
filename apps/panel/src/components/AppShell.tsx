@@ -29,6 +29,15 @@ interface NavItem {
 
 /** Protected area: waits for the session, sends anonymous visitors to /login. */
 export function ProtectedLayout() {
+  return <Protected>{() => <AppShell />}</Protected>;
+}
+
+/** Protected, without sidebar and header (print layouts). */
+export function ProtectedBare() {
+  return <Protected>{() => <Outlet />}</Protected>;
+}
+
+function Protected({ children }: { children: () => React.ReactNode }) {
   const { state } = useAuth();
   const navigate = useNavigate();
 
@@ -49,7 +58,7 @@ export function ProtectedLayout() {
       </div>
     );
   }
-  return <AppShell />;
+  return children();
 }
 
 function AppShell() {
@@ -63,8 +72,8 @@ function AppShell() {
       items: [
         { to: '/', icon: LayoutDashboard, label: t('nav.overview') },
         { to: '/menu', icon: UtensilsCrossed, label: t('nav.menu') },
-        { to: '/tables', icon: Armchair, label: t('nav.tables'), soon: true },
-        { to: '/staff', icon: UsersRound, label: t('nav.staff'), soon: true },
+        { to: '/tables', icon: Armchair, label: t('nav.tables') },
+        { to: '/staff', icon: UsersRound, label: t('nav.staff') },
       ],
     },
     {

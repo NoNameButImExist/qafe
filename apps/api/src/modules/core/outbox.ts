@@ -27,7 +27,8 @@ export function userLabel(fullName: string, email: string | null): string {
  */
 export async function publish(trx: Tx, event: CoreEvent): Promise<void> {
   const venueId = 'venueId' in event ? (event.venueId ?? null) : null;
-  const aggregateId = 'userId' in event ? event.userId : event.venueId;
+  const aggregateId =
+    'entityId' in event ? event.entityId : 'userId' in event ? event.userId : event.venueId;
   await trx
     .insertInto('core.outbox')
     .values({

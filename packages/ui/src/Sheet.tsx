@@ -29,7 +29,10 @@ export function Sheet({ open, onClose, title, description, children, footer }: S
   return (
     <dialog
       ref={ref}
-      onClose={onClose}
+      // React passes a nested dialog's close event up to this one; react only to our own.
+      onClose={(e) => {
+        if (e.target === ref.current) onClose();
+      }}
       onClick={(e) => {
         if (e.target === ref.current) onClose();
       }}

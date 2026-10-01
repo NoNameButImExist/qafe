@@ -5,7 +5,23 @@ export const VenueStatus = z.enum(['pending', 'active', 'suspended', 'closed']);
 export type VenueStatus = z.infer<typeof VenueStatus>;
 
 /** Same rule as the CHECK on core.venues.slug: it becomes the subdomain. */
-export const VenueSlug = z.string().regex(/^[a-z0-9]([a-z0-9-]{1,38})[a-z0-9]$/, 'slug');
+/** Subdomains the platform uses itself; a venue cannot take them (guests use <slug>.qafe.ba). */
+export const RESERVED_SLUGS = [
+  'api',
+  'staff',
+  'panel',
+  'admin',
+  's3',
+  'www',
+  'app',
+  'traefik',
+  'mail',
+] as const;
+
+export const VenueSlug = z
+  .string()
+  .regex(/^[a-z0-9]([a-z0-9-]{1,38})[a-z0-9]$/, 'slug')
+  .refine((slug) => !(RESERVED_SLUGS as readonly string[]).includes(slug), 'slug_reserved');
 
 const optionalText = (max: number) =>
   z

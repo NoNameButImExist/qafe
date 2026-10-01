@@ -64,6 +64,39 @@ export const UserAdminEvent = z.object({
 });
 export type UserAdminEvent = z.infer<typeof UserAdminEvent>;
 
+/** Areas, tables and QR codes (FR-SEF-11, FR-SEF-16). */
+export const SpaceEvent = z.object({
+  type: z.enum([
+    'area.created',
+    'area.updated',
+    'area.deleted',
+    'table.created',
+    'table.updated',
+    'table.deleted',
+    'table.qr_rotated',
+  ]),
+  ...venueRef,
+  entityId: z.uuid(),
+  entityName: z.string(),
+  before: z.record(z.string(), z.unknown()).optional(),
+  after: z.record(z.string(), z.unknown()).optional(),
+  actor: Actor,
+});
+export type SpaceEvent = z.infer<typeof SpaceEvent>;
+
+/** Staff accounts managed by the owner (FR-SEF-08, FR-SEF-09). */
+export const StaffEvent = z.object({
+  type: z.enum(['staff.created', 'staff.updated', 'staff.password_reset', 'staff.pin_changed']),
+  ...venueRef,
+  memberId: z.uuid(),
+  userId: z.uuid(),
+  memberLabel: z.string(),
+  before: z.record(z.string(), z.unknown()).optional(),
+  after: z.record(z.string(), z.unknown()).optional(),
+  actor: Actor,
+});
+export type StaffEvent = z.infer<typeof StaffEvent>;
+
 export const CoreEvent = z.discriminatedUnion('type', [
   VenueCreatedEvent,
   VenueUpdatedEvent,
@@ -71,6 +104,8 @@ export const CoreEvent = z.discriminatedUnion('type', [
   VenueModuleChangedEvent,
   UserLoggedInEvent,
   UserAdminEvent,
+  SpaceEvent,
+  StaffEvent,
 ]);
 export type CoreEvent = z.infer<typeof CoreEvent>;
 
@@ -98,3 +133,45 @@ export const CatalogEvent = z.object({
   actor: Actor,
 });
 export type CatalogEvent = z.infer<typeof CatalogEvent>;
+
+/**
+ * Table sessions and orders (ordering.outbox). Guests are anonymous: their actor is the
+ * session device with its nickname. Staff actions carry the member as actor.
+ */
+export const OrderingEvent = z.object({
+  type: z.enum([
+    'session.opened',
+    'session.verified',
+    'session.bill_requested',
+    'guest.joined',
+    'guest.approved',
+    'guest.left',
+    'order.created',
+    'order.resubmitted',
+    'order.withdrawn',
+    'order.disputed',
+    'order.accepted',
+    'order.served',
+    'order.returned',
+    'order.rejected',
+    'order.cancelled',
+    'order.changed',
+    'order.dispute_resolved',
+    'guest.removed',
+    'session.closed',
+    'service.requested',
+    'service.handled',
+  ]),
+  venueId: z.uuid(),
+  sessionId: z.uuid(),
+  tableId: z.uuid(),
+  tableLabel: z.string(),
+  /** The order, guest or request the event is about; the session for session events. */
+  entityId: z.uuid(),
+  orderNumber: z.number().int().optional(),
+  total: z.string().optional(),
+  details: z.record(z.string(), z.unknown()).optional(),
+  actor: Actor,
+  actorKind: z.enum(['guest', 'staff']),
+});
+export type OrderingEvent = z.infer<typeof OrderingEvent>;

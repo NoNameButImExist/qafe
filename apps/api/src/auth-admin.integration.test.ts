@@ -15,11 +15,11 @@ import type {
   VenueModuleState,
 } from '@qafe/contracts';
 import { startTestDatabase, type TestDatabase } from '@qafe/db/testing';
-import { exportPKCS8, exportSPKI, generateKeyPair } from 'jose';
+import type { StartedRedisContainer } from '@testcontainers/redis';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from './bootstrap.js';
-import type { AppConfig } from './config/config.js';
+import { startTestRedis, testConfig } from './test-support/test-app.js';
 
 const ADMIN = { email: 'admin@qafe.ba', password: 'Admin123!' };
 const SUPPORT = { email: 'support@qafe.ba', password: 'Support123!' };
@@ -27,6 +27,7 @@ const SUPPORT = { email: 'support@qafe.ba', password: 'Support123!' };
 let testDb: TestDatabase;
 let admin: pg.Client;
 let app: NestFastifyApplication;
+let redis: StartedRedisContainer;
 
 type Res = Awaited<ReturnType<NestFastifyApplication['inject']>>;
 
@@ -61,32 +62,8 @@ beforeAll(async () => {
     );
   }
 
-  const keys = await generateKeyPair('EdDSA', { extractable: true });
-  const core = testDb.connection('core');
-  const config: AppConfig = {
-    env: 'test',
-    port: 0,
-    db: {
-      host: core.host,
-      port: core.port,
-      database: core.database,
-      corePassword: core.password,
-      auditPassword: testDb.connection('audit').password,
-      catalogPassword: testDb.connection('catalog').password,
-    },
-    storage: { driver: 'memory' },
-    auth: {
-      privateKeyPem: await exportPKCS8(keys.privateKey),
-      publicKeyPem: await exportSPKI(keys.publicKey),
-      issuer: 'https://api.test',
-      accessTokenTtlSeconds: 900,
-      refreshTokenTtlDays: 30,
-      cookiePath: '/auth',
-      cookieSecure: true,
-      adminMfaRequired: false,
-    },
-    corsOrigins: [],
-  };
+  redis = await startTestRedis();
+  const config = await testConfig(testDb, redis);
   app = await createApp(config);
   await app.init();
   await app.getHttpAdapter().getInstance().ready();
@@ -96,6 +73,7 @@ afterAll(async () => {
   await app?.close();
   await admin?.end();
   await testDb?.stop();
+  await redis?.stop();
 });
 
 describe('admin login', () => {

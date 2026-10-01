@@ -8,6 +8,12 @@ const Env = z.object({
   SVC_CORE_PASSWORD: z.string().min(1),
   SVC_AUDIT_PASSWORD: z.string().min(1),
   SVC_CATALOG_PASSWORD: z.string().min(1),
+  SVC_ORDERING_PASSWORD: z.string().min(1),
+  SVC_BILLING_PASSWORD: z.string().min(1),
+  // Web Push for staff (FR-KON-05); without keys no notifications are sent.
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default('mailto:admin@qafe.ba'),
   OUTBOX_POLL_MS: z.coerce.number().int().min(100).default(1000),
 });
 

@@ -1,4 +1,4 @@
-import { CatalogEvent, CoreEvent } from '@qafe/contracts';
+import { BillingEvent, CatalogEvent, CoreEvent, OrderingEvent } from '@qafe/contracts';
 import type { AuditAuditLogs, TenantDatabase } from '@qafe/db';
 import type { Insertable } from 'kysely';
 import type { OutboxEvent } from './outbox-relay.js';
@@ -7,6 +7,17 @@ type AuditRow = Insertable<AuditAuditLogs>;
 
 const json = (value: unknown) =>
   value === undefined || value === null ? null : JSON.stringify(value);
+
+/**
+ * Which events go to the audit log. Guests place thousands of orders a day; those belong to
+ * reporting. The log keeps what staff did with sessions and orders, and "Nije naše" reports.
+ */
+export function isAudited(event: OutboxEvent): boolean {
+  if (event.source !== 'ordering') return true;
+  const parsed = OrderingEvent.safeParse(event.payload);
+  if (!parsed.success) return true;
+  return parsed.data.actorKind === 'staff' || parsed.data.type === 'order.disputed';
+}
 
 /** Maps an outbox event to an audit log entry (FR-ADM-10). */
 export function toAuditRow(event: OutboxEvent): AuditRow {
@@ -19,6 +30,41 @@ export function toAuditRow(event: OutboxEvent): AuditRow {
     venue_id: event.venueId,
     created_at: event.createdAt,
   };
+
+  if (event.source === 'ordering') {
+    const ordering = OrderingEvent.safeParse(event.payload);
+    if (ordering.success) {
+      const e = ordering.data;
+      return {
+        ...base,
+        actor_id: e.actor.id,
+        actor_label: e.actor.label,
+        entity_type: e.type.split('.')[0] ?? 'ordering',
+        entity_id: e.entityId,
+        new_values: json({
+          table: e.tableLabel,
+          ...(e.orderNumber !== undefined ? { number: e.orderNumber } : {}),
+          ...(e.total !== undefined ? { total: e.total } : {}),
+          ...e.details,
+        }),
+      };
+    }
+  }
+
+  if (event.source === 'billing') {
+    const billing = BillingEvent.safeParse(event.payload);
+    if (billing.success) {
+      const e = billing.data;
+      return {
+        ...base,
+        actor_id: e.actor.id,
+        actor_label: e.actor.label,
+        entity_type: 'payment',
+        entity_id: e.entityId,
+        new_values: json({ table: e.tableLabel, amount: e.amount, method: e.method }),
+      };
+    }
+  }
 
   if (event.source === 'catalog') {
     const catalog = CatalogEvent.safeParse(event.payload);
@@ -103,6 +149,35 @@ export function toAuditRow(event: OutboxEvent): AuditRow {
         entity_id: e.userId,
         new_values: json({ user: e.userLabel }),
       };
+    case 'area.created':
+    case 'area.updated':
+    case 'area.deleted':
+    case 'table.created':
+    case 'table.updated':
+    case 'table.deleted':
+    case 'table.qr_rotated':
+      return {
+        ...base,
+        ...actor,
+        entity_type: e.type.split('.')[0] ?? 'table',
+        entity_id: e.entityId,
+        venue_label: e.venueName,
+        old_values: json(e.before),
+        new_values: json({ ...e.after, name: e.entityName }),
+      };
+    case 'staff.created':
+    case 'staff.updated':
+    case 'staff.password_reset':
+    case 'staff.pin_changed':
+      return {
+        ...base,
+        ...actor,
+        entity_type: 'staff',
+        entity_id: e.userId,
+        venue_label: e.venueName,
+        old_values: json(e.before),
+        new_values: json({ ...e.after, user: e.memberLabel }),
+      };
   }
 }
 
@@ -111,10 +186,12 @@ export class AuditWriter {
   constructor(private readonly db: TenantDatabase) {}
 
   readonly handle = async (events: OutboxEvent[]): Promise<void> => {
+    const audited = events.filter(isAudited);
+    if (audited.length === 0) return;
     await this.db.withTenant({ venueId: null, isSuperAdmin: false }, (trx) =>
       trx
         .insertInto('audit.audit_logs')
-        .values(events.map(toAuditRow))
+        .values(audited.map(toAuditRow))
         .onConflict((oc) => oc.column('event_id').doNothing())
         .execute(),
     );

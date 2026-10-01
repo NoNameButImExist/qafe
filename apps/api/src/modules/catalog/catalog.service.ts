@@ -13,6 +13,7 @@ import {
 import type { Tx } from '@qafe/db';
 import { ApiException, notFound } from '../../common/errors.js';
 import { CatalogDatabase } from './catalog.database.js';
+import { MenuCache } from './menu-cache.js';
 
 /** Normalises "2", "2,5" or "2.50" to "2.50". */
 const money = (value: string) => Number(value.replace(',', '.')).toFixed(2);
@@ -31,7 +32,10 @@ const categoryNotEmpty = () =>
  */
 @Injectable()
 export class CatalogService {
-  constructor(private readonly db: CatalogDatabase) {}
+  constructor(
+    private readonly db: CatalogDatabase,
+    private readonly cache: MenuCache,
+  ) {}
 
   getMenu(venueId: string): Promise<Menu> {
     return this.inVenue(venueId, (trx) => this.load(trx, venueId));
@@ -42,7 +46,7 @@ export class CatalogService {
     actor: Actor,
     input: CreateCategoryRequest & { name: string },
   ): Promise<Menu> {
-    return this.inVenue(venueId, async (trx) => {
+    return this.change(venueId, async (trx) => {
       const menuId = await this.ensureMenu(trx, venueId);
       const { max } = await trx
         .selectFrom('catalog.categories')
@@ -78,7 +82,7 @@ export class CatalogService {
     id: string,
     input: UpdateCategoryRequest,
   ): Promise<Menu> {
-    return this.inVenue(venueId, async (trx) => {
+    return this.change(venueId, async (trx) => {
       const current = await trx
         .selectFrom('catalog.categories')
         .select(['name', 'description', 'is_active'])
@@ -109,7 +113,7 @@ export class CatalogService {
 
   /** Only an empty category can be deleted, so no item disappears from the menu by accident. */
   deleteCategory(venueId: string, actor: Actor, id: string): Promise<Menu> {
-    return this.inVenue(venueId, async (trx) => {
+    return this.change(venueId, async (trx) => {
       const category = await trx
         .selectFrom('catalog.categories')
         .select('name')
@@ -139,7 +143,7 @@ export class CatalogService {
   }
 
   reorderCategories(venueId: string, ids: string[]): Promise<Menu> {
-    return this.inVenue(venueId, async (trx) => {
+    return this.change(venueId, async (trx) => {
       for (const [index, id] of ids.entries()) {
         await trx
           .updateTable('catalog.categories')
@@ -152,7 +156,7 @@ export class CatalogService {
   }
 
   createItem(venueId: string, actor: Actor, input: CreateItemInput): Promise<Menu> {
-    return this.inVenue(venueId, async (trx) => {
+    return this.change(venueId, async (trx) => {
       await this.requireCategory(trx, input.categoryId);
       const { max } = await trx
         .selectFrom('catalog.items')
@@ -189,7 +193,7 @@ export class CatalogService {
   }
 
   updateItem(venueId: string, actor: Actor, id: string, input: UpdateItemInput): Promise<Menu> {
-    return this.inVenue(venueId, async (trx) => {
+    return this.change(venueId, async (trx) => {
       const current = await this.requireItem(trx, id);
       if (input.categoryId) await this.requireCategory(trx, input.categoryId);
       const { before, after, changes } = diff(current, {
@@ -230,7 +234,7 @@ export class CatalogService {
 
   /** Soft delete: past orders keep their snapshot, the item leaves the menu. */
   deleteItem(venueId: string, actor: Actor, id: string): Promise<Menu> {
-    return this.inVenue(venueId, async (trx) => {
+    return this.change(venueId, async (trx) => {
       const item = await this.requireItem(trx, id);
       await trx
         .updateTable('catalog.items')
@@ -251,7 +255,7 @@ export class CatalogService {
 
   /** "Nestalo" with one tap (FR-SEF-19, FR-KON-22). */
   setAvailability(venueId: string, actor: Actor, id: string, available: boolean): Promise<Menu> {
-    return this.inVenue(venueId, async (trx) => {
+    return this.change(venueId, async (trx) => {
       const item = await this.requireItem(trx, id);
       if (item.is_available !== available) {
         await trx
@@ -274,7 +278,7 @@ export class CatalogService {
   }
 
   reorderItems(venueId: string, categoryId: string, ids: string[]): Promise<Menu> {
-    return this.inVenue(venueId, async (trx) => {
+    return this.change(venueId, async (trx) => {
       await this.requireCategory(trx, categoryId);
       for (const [index, id] of ids.entries()) {
         await trx
@@ -295,7 +299,7 @@ export class CatalogService {
     id: string | null,
     input: SaveModifierGroupInput,
   ): Promise<Menu> {
-    return this.inVenue(venueId, async (trx) => {
+    return this.change(venueId, async (trx) => {
       let groupId = id;
       if (groupId) {
         const found = await trx
@@ -369,7 +373,7 @@ export class CatalogService {
   }
 
   deleteModifierGroup(venueId: string, actor: Actor, id: string): Promise<Menu> {
-    return this.inVenue(venueId, async (trx) => {
+    return this.change(venueId, async (trx) => {
       const group = await trx
         .selectFrom('catalog.modifier_groups')
         .select('name')
@@ -391,6 +395,13 @@ export class CatalogService {
 
   private inVenue<T>(venueId: string, fn: (trx: Tx) => Promise<T>): Promise<T> {
     return this.db.withTenant({ venueId, isSuperAdmin: false }, fn);
+  }
+
+  /** A menu change: after the commit, guests get the new menu on their next load. */
+  private async change<T>(venueId: string, fn: (trx: Tx) => Promise<T>): Promise<T> {
+    const result = await this.inVenue(venueId, fn);
+    await this.cache.invalidate(venueId);
+    return result;
   }
 
   private async ensureMenu(trx: Tx, venueId: string): Promise<string> {

@@ -16,7 +16,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { Card, SectionTitle, cn } from '@qafe/ui';
 import { greetingKey } from '../lib/format';
-import { menuQuery, settingsQuery } from '../lib/queries';
+import { menuQuery, settingsQuery, spaceQuery, staffQuery } from '../lib/queries';
 import { useCan, useStaff } from '../lib/useAuth';
 
 export function OverviewPage() {
@@ -25,6 +25,8 @@ export function OverviewPage() {
   const canSeeMenu = useCan('menu.edit', 'menu.availability');
   const menu = useQuery({ ...menuQuery, enabled: canSeeMenu });
   const settings = useQuery(settingsQuery);
+  const space = useQuery({ ...spaceQuery, enabled: useCan('tables.manage') });
+  const team = useQuery({ ...staffQuery, enabled: useCan('staff.manage') });
 
   const items = menu.data?.categories.flatMap((c) => c.items) ?? [];
   const unavailable = items.filter((i) => !i.isAvailable).length;
@@ -104,15 +106,26 @@ export function OverviewPage() {
             to="/tables"
             icon={Armchair}
             title={t('overview.steps.tables')}
-            hint={t('overview.steps.tablesHint')}
-            soon
+            hint={
+              space.data?.tables.length
+                ? t('overview.steps.tablesCount', {
+                    tables: space.data.tables.length,
+                    areas: space.data.areas.length,
+                  })
+                : t('overview.steps.tablesHint')
+            }
+            done={Boolean(space.data?.tables.length)}
           />
           <Step
             to="/staff"
             icon={UsersRound}
             title={t('overview.steps.staff')}
-            hint={t('overview.steps.staffHint')}
-            soon
+            hint={
+              team.data && team.data.members.length > 1
+                ? t('overview.steps.staffCount', { count: team.data.members.length })
+                : t('overview.steps.staffHint')
+            }
+            done={Boolean(team.data && team.data.members.length > 1)}
           />
         </ul>
       </Card>
