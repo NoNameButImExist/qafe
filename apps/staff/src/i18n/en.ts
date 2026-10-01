@@ -67,7 +67,7 @@ const en: Messages = {
     pushUnsupported:
       'This browser does not support notifications. On iPhone, add the app to the home screen.',
     soundOn: 'Sound on',
-    soundOff: 'Sound off',
+    soundOff: 'Sound off: tap to turn it on',
   },
   floor: {
     title: 'Tables',

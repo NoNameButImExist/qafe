@@ -14,6 +14,8 @@ const json = (value: unknown) =>
  */
 export function isAudited(event: OutboxEvent): boolean {
   if (event.source !== 'ordering') return true;
+  // Item-level sales data for reports; the payment itself is audited from billing.
+  if (event.type === 'session.settled') return false;
   const parsed = OrderingEvent.safeParse(event.payload);
   if (!parsed.success) return true;
   return parsed.data.actorKind === 'staff' || parsed.data.type === 'order.disputed';

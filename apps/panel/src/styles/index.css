@@ -1,2 +1,10 @@
 @import 'tailwindcss';
 @import '@qafe/ui/theme.css';
+
+/* Report charts: one series, one hue (validated against both surfaces). */
+:root {
+  --chart-bar: #0070e8;
+}
+.dark {
+  --chart-bar: #3d8bff;
+}

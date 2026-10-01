@@ -14,6 +14,7 @@ const Env = z.object({
   SVC_CATALOG_PASSWORD: z.string().min(1),
   SVC_ORDERING_PASSWORD: z.string().min(1),
   SVC_BILLING_PASSWORD: z.string().min(1),
+  SVC_REPORTING_PASSWORD: z.string().min(1),
 
   REDIS_HOST: z.string().default('localhost'),
   REDIS_PORT: z.coerce.number().int().positive().default(6379),
@@ -77,6 +78,7 @@ export interface AppConfig {
     catalogPassword: string;
     orderingPassword: string;
     billingPassword: string;
+    reportingPassword: string;
   };
   redis: { host: string; port: number; password: string | undefined };
   storage: StorageConfig;
@@ -138,6 +140,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
       catalogPassword: env.SVC_CATALOG_PASSWORD,
       orderingPassword: env.SVC_ORDERING_PASSWORD,
       billingPassword: env.SVC_BILLING_PASSWORD,
+      reportingPassword: env.SVC_REPORTING_PASSWORD,
     },
     redis: { host: env.REDIS_HOST, port: env.REDIS_PORT, password: env.REDIS_PASSWORD },
     storage: storageConfig(env),

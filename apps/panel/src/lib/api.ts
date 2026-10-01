@@ -118,7 +118,26 @@ const KNOWN = [
   'forbidden',
   'not_found',
   'network',
+  'invalid_state',
 ] as const;
+
+/** Downloads a file from the API (Excel, CSV) with the access token and saves it. */
+export async function download(path: string, retried = false): Promise<void> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    credentials: 'include',
+    headers: accessToken ? { authorization: `Bearer ${accessToken}` } : {},
+  });
+  if (res.status === 401 && !retried && (await refreshSession())) return download(path, true);
+  if (!res.ok) throw new ApiError(res.status, 'unknown', res.statusText);
+  const name =
+    /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? 'qafe-report';
+  const url = URL.createObjectURL(await res.blob());
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1_000);
+}
 
 /** Translation key for an error, for t(errorKey(error)). */
 export function errorKey(error: unknown) {

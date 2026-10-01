@@ -337,6 +337,7 @@ const en: Messages = {
       primary_color: 'Colour',
       vat_rate: 'VAT',
       payments: 'Payments',
+      opening_hours: 'Opening hours',
       table: 'Table',
       number: 'Order number',
       total: 'Total',

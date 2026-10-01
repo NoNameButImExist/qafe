@@ -16,7 +16,13 @@ import { NoticeContext } from '../lib/notice';
 import { tellServiceWorkerLanguage } from '../lib/push';
 import { floorQuery, ordersQuery } from '../lib/queries';
 import { connectRealtime } from '../lib/realtime';
-import { soundEnabled } from '../lib/sound';
+import {
+  readyConfirmed,
+  setReadyConfirmed,
+  unlockOnFirstInteraction,
+  unlockSound,
+  useSoundEnabled,
+} from '../lib/sound';
 import { useAuth, useCan, useStaff } from '../lib/useAuth';
 import { ReadyGate } from './ReadyGate';
 
@@ -52,7 +58,12 @@ function AppShell() {
   const { logout } = useAuth();
   const queryClient = useQueryClient();
   const [notice, setNotice] = useNotice();
-  const [ready, setReady] = useState(false);
+  // Asked once after sign-in; a reload keeps it and unlocks sound on the first tap.
+  const [ready, setReady] = useState(readyConfirmed);
+  const sound = useSoundEnabled();
+  useEffect(() => {
+    if (ready) unlockOnFirstInteraction();
+  }, [ready]);
   const canSeeOrders = useCan('orders.view');
   const canMenu = useCan('menu.availability', 'menu.edit');
   const floor = useQuery({ ...floorQuery, enabled: canSeeOrders });
@@ -95,16 +106,18 @@ function AppShell() {
               </p>
               <p className="truncate text-xs text-muted">{staff.fullName}</p>
             </div>
-            <span
+            <button
+              type="button"
+              onClick={() => void unlockSound().catch(() => undefined)}
               className={cn(
-                'grid size-10 place-items-center rounded-xl',
-                soundEnabled() ? 'text-success' : 'text-muted',
+                'grid size-11 place-items-center rounded-xl',
+                sound ? 'text-success' : 'bg-warning/12 text-warning',
               )}
-              title={soundEnabled() ? t('ready.soundOn') : t('ready.soundOff')}
-              aria-label={soundEnabled() ? t('ready.soundOn') : t('ready.soundOff')}
+              title={sound ? t('ready.soundOn') : t('ready.soundOff')}
+              aria-label={sound ? t('ready.soundOn') : t('ready.soundOff')}
             >
-              {soundEnabled() ? <Volume2 className="size-5" /> : <VolumeX className="size-5" />}
-            </span>
+              {sound ? <Volume2 className="size-5" /> : <VolumeX className="size-5" />}
+            </button>
             <LanguageSwitch />
             <button
               type="button"
@@ -150,7 +163,14 @@ function AppShell() {
           </div>
         </nav>
 
-        {!ready && <ReadyGate onReady={() => setReady(true)} />}
+        {!ready && (
+          <ReadyGate
+            onReady={() => {
+              setReadyConfirmed(true);
+              setReady(true);
+            }}
+          />
+        )}
       </div>
     </NoticeContext.Provider>
   );

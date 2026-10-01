@@ -9,7 +9,7 @@ import { api, errorKey } from '../lib/api';
 import { settingsQuery } from '../lib/queries';
 import { useCan } from '../lib/useAuth';
 
-/** FR-SEF-02..05, FR-SEF-07: venue details, ordering options, VAT and payment methods. */
+/** FR-SEF-02..05, FR-SEF-07: venue details, ordering options, VAT, payments and opening hours. */
 export function SettingsPage() {
   const { t } = useTranslation();
   const settings = useQuery(settingsQuery);
@@ -46,6 +46,7 @@ export function SettingsPage() {
             <OrderingSection data={settings.data} disabled={!canEdit} />
             <VatSection data={settings.data} disabled={!canEdit} />
             <PaymentsSection data={settings.data} disabled={!canEdit} />
+            <HoursSection data={settings.data} disabled={!canEdit} />
           </div>
         </div>
       )}
@@ -376,6 +377,108 @@ function PaymentsSection({ data, disabled }: { data: VenueSettings; disabled: bo
           ]}
         />
       </div>
+    </SectionForm>
+  );
+}
+
+type Hours = VenueSettings['openingHours'];
+const DEFAULT_WEEK: Hours = [1, 2, 3, 4, 5, 6, 7].map((day) => ({
+  day,
+  opensAt: '07:00',
+  closesAt: '23:00',
+}));
+
+/** FR-SEF-02: one interval per weekday; outside it guests cannot order (FR-GOS-03). */
+function HoursSection({ data, disabled }: { data: VenueSettings; disabled: boolean }) {
+  const { t } = useTranslation();
+  const save = useSave();
+  const [enabled, setEnabled] = useState(data.openingHours.length > 0);
+  // Every day keeps its times while switched off, so turning it back on restores them.
+  const [days, setDays] = useState(() =>
+    [1, 2, 3, 4, 5, 6, 7].map((day) => {
+      const saved = data.openingHours.find((d) => d.day === day);
+      return {
+        day,
+        open: enabled ? Boolean(saved) : true,
+        opensAt: saved?.opensAt ?? '07:00',
+        closesAt: saved?.closesAt ?? '23:00',
+      };
+    }),
+  );
+  const next: Hours = enabled
+    ? days.filter((d) => d.open).map(({ day, opensAt, closesAt }) => ({ day, opensAt, closesAt }))
+    : [];
+  const invalid = next.some((d) => d.opensAt === d.closesAt || !d.opensAt || !d.closesAt);
+  const dirty = JSON.stringify(next) !== JSON.stringify(data.openingHours);
+  const weekdays = t('settings.weekdays', { returnObjects: true });
+  const update = (day: number, patch: Partial<(typeof days)[number]>) =>
+    setDays((all) => all.map((d) => (d.day === day ? { ...d, ...patch } : d)));
+
+  return (
+    <SectionForm
+      title={t('settings.hours')}
+      disabled={disabled}
+      dirty={dirty && !invalid}
+      saving={save.isPending}
+      saved={save.isSuccess}
+      error={save.error}
+      onSubmit={() => save.mutate({ openingHours: next })}
+    >
+      <p className="text-xs text-muted">{t('settings.hoursHint')}</p>
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-sm font-semibold text-ink">{t('settings.hoursEnabled')}</p>
+        <Switch
+          label={t('settings.hoursEnabled')}
+          checked={enabled}
+          disabled={disabled}
+          onChange={(on) => {
+            setEnabled(on);
+            if (on && !days.some((d) => d.open)) {
+              setDays(DEFAULT_WEEK.map((d) => ({ ...d, open: true })));
+            }
+          }}
+        />
+      </div>
+      {!enabled ? (
+        <p className="text-[13px] text-muted">{t('settings.hoursOff')}</p>
+      ) : (
+        <ul className="flex flex-col divide-y divide-line">
+          {days.map((d) => (
+            <li key={d.day} className="flex flex-wrap items-center gap-3 py-2.5">
+              <span className="w-28 text-sm font-medium text-ink">{weekdays[d.day - 1]}</span>
+              <Switch
+                label={`${weekdays[d.day - 1]}: ${t('settings.open')}`}
+                checked={d.open}
+                disabled={disabled}
+                onChange={(open) => update(d.day, { open })}
+              />
+              {d.open ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="time"
+                    aria-label={`${weekdays[d.day - 1]}: ${t('settings.opensAt')}`}
+                    value={d.opensAt}
+                    disabled={disabled}
+                    onChange={(e) => update(d.day, { opensAt: e.target.value })}
+                    className="h-9 w-28"
+                  />
+                  <span className="text-muted">–</span>
+                  <Input
+                    type="time"
+                    aria-label={`${weekdays[d.day - 1]}: ${t('settings.closesAt')}`}
+                    value={d.closesAt}
+                    disabled={disabled}
+                    onChange={(e) => update(d.day, { closesAt: e.target.value })}
+                    className="h-9 w-28"
+                  />
+                </div>
+              ) : (
+                <span className="text-sm text-muted">{t('settings.closedDay')}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </SectionForm>
   );
 }

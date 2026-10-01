@@ -14,6 +14,8 @@ const bs = {
       suspended: 'Lokal trenutno ne prima narudžbe. Meni možete pregledati.',
       closed: 'Lokal je zatvoren. Meni možete pregledati.',
       ordering_disabled: 'Naručivanje preko telefona je trenutno isključeno. Pozovite konobara.',
+      outside_hours:
+        'Lokal trenutno ne radi. Meni možete pregledati, a naručivanje je moguće u radno vrijeme.',
     },
   },
   landing: {

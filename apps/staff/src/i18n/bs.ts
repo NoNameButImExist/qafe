@@ -70,7 +70,7 @@ const bs = {
     pushUnsupported:
       'Ovaj browser ne podržava obavijesti. Na iPhoneu dodajte aplikaciju na početni ekran.',
     soundOn: 'Zvuk uključen',
-    soundOff: 'Zvuk isključen',
+    soundOff: 'Zvuk isključen: dodirnite za uključivanje',
   },
   floor: {
     title: 'Stolovi',

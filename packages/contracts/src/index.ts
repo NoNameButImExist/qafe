@@ -4,6 +4,7 @@ export * from './catalog.js';
 export * from './common.js';
 export * from './events.js';
 export * from './ordering.js';
+export * from './reports.js';
 export * from './staff.js';
 export * from './staff-ordering.js';
 export * from './tables.js';

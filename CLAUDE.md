@@ -173,6 +173,20 @@ is for typechecking only. Apps depend on them with `workspace:*`.
   `pending` → `SessionLedger.closeAfterPayment` (ordering's public interface) re-checks the bill
   under the session lock → `completed`, or `failed` with `bill_changed` / `open_orders`. Events go
   to `billing.outbox`. Partial payments (V2) and fiscalisation (V3) are not built.
+- `reporting`: sales reports (FR-SEF-24, 25) from `reporting.order_item_facts`, one row per paid
+  item. When a table is paid, `SessionLedger` publishes `session.settled` (ordering.outbox, same
+  transaction as the close) with every billed item and its snapshot (prices, VAT, waiter name via
+  `VenueDirectory.memberNames`, area, local hour and weekday); the worker's `ReportingWriter`
+  writes the facts idempotently. Revenue counts at payment. `GET /reports/summary?from&to`
+  (`reports.view`): totals, previous period of the same length, by day / hour / weekday (gaps
+  filled with zeros), item, category, waiter, payment method. `GET /reports/export` gives CSV (one
+  table; bs uses `;` and a decimal comma, with a BOM) or Excel (`write-excel-file`, a sheet per
+  table). PDF is the panel's print page.
+- Opening hours (FR-SEF-02): `openingHours` in `GET/PATCH /venue`, one interval per weekday
+  (closing at or before opening runs past midnight; no entries = always open).
+  `OrderingSettings.openNow` is computed in the venue's timezone; outside the hours guests get
+  `closedReason: 'outside_hours'` and orders fail with `ordering_closed`. Staff orders are not limited.
+- `GET /staff/orders/day?date=` (FR-SEF-23): every order of a business day (today's by default).
 - Realtime: Socket.IO gateway in `ordering` with the Redis adapter (`common/redis/redis-io.adapter.ts`).
   Messages are hints (`session.changed`, `venue.changed`); clients refetch over HTTP. Guests are put
   in `session:<id>` from the handshake cookie (the app reconnects after joining a table), staff in
@@ -203,6 +217,11 @@ is for typechecking only. Apps depend on them with `workspace:*`.
 - The logo is a text wordmark in `@qafe/ui` `Brand.tsx` until the final logo arrives.
 - `src/lib/api.ts` in each app is its only HTTP client: bearer token from memory, one shared refresh
   on 401 (admin: `/auth/refresh`, panel: `/auth/staff/refresh`).
+- Panel orders (`/orders`: business day, status groups, search, cancel with a reason) and reports
+  (`/reports`: presets and custom range, stat tiles against the previous period, recharts bar
+  charts with a table view, ranked tables, Excel / CSV download, `/reports/print` A4 page for PDF).
+  The reports page is lazy-loaded (recharts stays out of the main bundle). Chart bars use
+  `--chart-bar` (validated for light and dark).
 - Panel: login (venue slug + username), overview with setup checklist, menu editor (drag and drop
   with dnd-kit, also by keyboard), modifier groups, item images, settings, space and QR (cards
   printed six per A4 from `/tables/print`; the browser's print dialog saves a PDF), staff accounts
@@ -264,15 +283,15 @@ is for typechecking only. Apps depend on them with `workspace:*`.
    (list, detail, edit, status, modules), admin users (list, block, password reset),
    `GET /venues/:slug/public`; `audit` module (read side). Missing: OTel, staff login
    (slug + username, PIN), password change, TOTP.
-4. Remaining modules, `redis`, a BullMQ example job ← **ordering, billing and redis done**, worker
-   relays all outboxes to the audit log and sends Web Push. Missing: reporting, BullMQ jobs.
+4. Remaining modules, `redis`, a BullMQ example job ← **ordering, billing, reporting and redis done**,
+   worker relays all outboxes (audit log, report facts, Web Push). Missing: BullMQ jobs.
 5. Frontends ← **admin mostly done**, **panel started**: admin has login, overview, venues + venue
    page, modules, users, audit log (missing: menu UI for FR-ADM-07 (API ready), monitoring).
-   Panel has login, overview, menu, settings, space and QR, staff (missing: orders, reports).
+   Panel has login, overview, menu, settings (incl. opening hours), space and QR, staff, orders
+   and reports.
    Guest app done for MVP ordering (FR-GOS-01..04, 08..16, 20..27); staff app done for the MVP
    waiter flow (FR-KON-01, 02, 04..13, 15..19, 21, 22) with push; offline mode (NFR-05) missing.
 6. Full Docker: compose (observability, apps, tools), Traefik, prod compose, Makefile ← **done
    except observability and backups**
 
-Not yet: reports and the panel's orders page, KDS, offline staff app. Those follow
-`docs/requirements.md`.
+Not yet: KDS, offline staff app, observability and backups. Those follow `docs/requirements.md`.

@@ -1,5 +1,6 @@
 import type { BillLine, GuestSessionState, SessionOrder, VerificationMode } from '@qafe/contracts';
 import type { Tx } from '@qafe/db';
+import { sql } from 'kysely';
 
 /** "Pozovi konobara" can be pressed again after this long (FR-GOS-14). */
 export const CALL_WAITER_COOLDOWN_SECONDS = 60;
@@ -19,6 +20,7 @@ export type LoadedOrder = SessionOrder & {
   tableId: string;
   tableLabel: string;
   source: 'guest_qr' | 'staff';
+  sessionStatus: 'open' | 'bill_requested' | 'closed' | 'abandoned';
 };
 
 export interface OrderFilter {
@@ -29,6 +31,8 @@ export interface OrderFilter {
   oldestFirst?: boolean;
   /** Only orders of open tables (a paid or abandoned table drops out of the queue). */
   activeSessionsOnly?: boolean;
+  /** One business day ("2026-10-01"). */
+  businessDate?: string;
 }
 
 /** Orders with items, modifiers and staff changes; newest first unless asked otherwise. */
@@ -50,6 +54,7 @@ export async function loadOrders(
       'o.session_id',
       'o.table_id',
       's.table_label',
+      's.status as session_status',
       'o.source',
       'o.order_number',
       'o.status',
@@ -66,6 +71,9 @@ export async function loadOrders(
   if (filter.orderIds) query = query.where('o.id', 'in', filter.orderIds);
   if (filter.statuses) query = query.where('o.status', 'in', filter.statuses);
   if (filter.activeSessionsOnly) query = query.where('s.status', 'in', ['open', 'bill_requested']);
+  if (filter.businessDate) {
+    query = query.where('o.business_date', '=', sql<Date>`${filter.businessDate}::date`);
+  }
   const orders = await query.orderBy('o.created_at', filter.oldestFirst ? 'asc' : 'desc').execute();
   if (orders.length === 0) return [];
 
@@ -116,6 +124,7 @@ export async function loadOrders(
     sessionId: o.session_id,
     tableId: o.table_id,
     tableLabel: o.table_label,
+    sessionStatus: o.session_status,
     source: o.source,
     note: o.guest_note,
     staffMessage: o.staff_message,
@@ -286,6 +295,7 @@ export function staffOrder(order: LoadedOrder) {
     tableId: order.tableId,
     tableLabel: order.tableLabel,
     source: order.source,
+    sessionStatus: order.sessionStatus,
   };
 }
 

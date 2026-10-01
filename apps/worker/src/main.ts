@@ -5,10 +5,11 @@ import { loadConfig } from './config.js';
 import { createHealthServer } from './health.js';
 import { OutboxRelay, type OutboxEvent } from './outbox-relay.js';
 import { PushNotifier } from './push-notifier.js';
+import { ReportingWriter } from './reporting-writer.js';
 
 const config = loadConfig();
 const connection = (
-  module: 'core' | 'catalog' | 'ordering' | 'billing' | 'audit',
+  module: 'core' | 'catalog' | 'ordering' | 'billing' | 'audit' | 'reporting',
   password: string,
 ) =>
   new TenantDatabase({
@@ -26,6 +27,7 @@ const catalog = connection('catalog', config.SVC_CATALOG_PASSWORD);
 const ordering = connection('ordering', config.SVC_ORDERING_PASSWORD);
 const billing = connection('billing', config.SVC_BILLING_PASSWORD);
 const audit = connection('audit', config.SVC_AUDIT_PASSWORD);
+const reporting = connection('reporting', config.SVC_REPORTING_PASSWORD);
 
 const sources = [
   { schema: 'core', db: core },
@@ -35,6 +37,7 @@ const sources = [
 ];
 
 const auditWriter = new AuditWriter(audit);
+const reportingWriter = new ReportingWriter(reporting);
 const push =
   config.VAPID_PUBLIC_KEY && config.VAPID_PRIVATE_KEY
     ? new PushNotifier(
@@ -53,9 +56,11 @@ const push =
       )
     : null;
 
-// The audit log first (a failure retries the batch), then notifications (best effort).
+// Audit log and report facts first (a failure retries the batch), then notifications
+// (best effort).
 const handle = async (events: OutboxEvent[]) => {
   await auditWriter.handle(events);
+  await reportingWriter.handle(events);
   await push?.handle(events);
 };
 

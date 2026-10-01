@@ -95,6 +95,32 @@ export class VenueSettingsService {
         }
       }
 
+      if (input.openingHours) {
+        const old = await this.openingHours(trx);
+        const next = [...input.openingHours].sort((a, b) => a.day - b.day);
+        if (JSON.stringify(old) !== JSON.stringify(next)) {
+          await trx
+            .deleteFrom('core.venue_opening_hours')
+            .where('venue_id', '=', venueId)
+            .execute();
+          if (next.length) {
+            await trx
+              .insertInto('core.venue_opening_hours')
+              .values(
+                next.map((d) => ({
+                  venue_id: venueId,
+                  day_of_week: d.day,
+                  opens_at: d.opensAt,
+                  closes_at: d.closesAt,
+                })),
+              )
+              .execute();
+          }
+          before.opening_hours = old;
+          after.opening_hours = next;
+        }
+      }
+
       if (Object.keys(after).length) {
         await publish(trx, {
           type: 'venue.updated',
@@ -173,7 +199,22 @@ export class VenueSettingsService {
       vatRate: v.vat_rate,
       payments: await this.payments(trx, venueId),
       modules: modules.map((m) => m.module_code),
+      openingHours: await this.openingHours(trx),
     };
+  }
+
+  private async openingHours(trx: Tx): Promise<VenueSettings['openingHours']> {
+    const rows = await trx
+      .selectFrom('core.venue_opening_hours')
+      .select(['day_of_week', 'opens_at', 'closes_at'])
+      .orderBy('day_of_week')
+      .orderBy('opens_at')
+      .execute();
+    return rows.map((r) => ({
+      day: r.day_of_week,
+      opensAt: r.opens_at.slice(0, 5),
+      closesAt: r.closes_at.slice(0, 5),
+    }));
   }
 
   private async payments(trx: Tx, venueId: string): Promise<VenueSettings['payments']> {

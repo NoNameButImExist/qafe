@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import {
   ErrorCode,
   type AddItemsInput,
+  type DayOrderList,
   type OrderStatus,
   type PlaceOrderInput,
   type ReplaceItemInput,
@@ -9,6 +10,7 @@ import {
   type StaffOrderList,
 } from '@qafe/contracts';
 import type { Tx } from '@qafe/db';
+import { sql } from 'kysely';
 import type { StaffClaims } from '../../common/auth/auth.guard.js';
 import { GuestMenuService, type PricedLine, type QuoteLine } from '../catalog/index.js';
 import { VenueDirectory, type OrderingSettings } from '../core/index.js';
@@ -63,12 +65,31 @@ export class StaffOrdersService {
   ) {}
 
   /** Live orders, oldest first: the waiter's queue. */
-  list(staff: StaffClaims): Promise<StaffOrderList> {
+  async list(staff: StaffClaims): Promise<StaffOrderList> {
+    const settings = await this.settings(staff);
     return this.inVenue(staff, async (trx) => ({
+      orderRejectionEnabled: settings.orderRejectionEnabled,
       orders: (
         await loadOrders(trx, { statuses: LIVE, oldestFirst: true, activeSessionsOnly: true })
       ).map(staffOrder),
     }));
+  }
+
+  /** Every order of one business day, all areas and statuses, newest first (FR-SEF-23). */
+  async day(staff: StaffClaims, date?: string): Promise<DayOrderList> {
+    const settings = await this.settings(staff);
+    return this.inVenue(staff, async (trx) => {
+      const businessDate =
+        date ??
+        (
+          await sql<{ d: string }>`
+            select ((now() at time zone ${settings.timezone})
+                    - ${settings.businessDayStartsAt}::interval)::date::text as d
+          `.execute(trx)
+        ).rows[0]!.d;
+      const orders = await loadOrders(trx, { businessDate });
+      return { date: businessDate, orders: orders.map(staffOrder) };
+    });
   }
 
   /** One tap (FR-KON-06); the first accepted order also verifies the table (FR-GOS-21). */
@@ -394,11 +415,18 @@ export class StaffOrdersService {
           'o.total',
           'o.dispute_status',
           's.table_label',
+          's.status as session_status',
         ])
         .where('o.id', '=', orderId)
         .forUpdate('o')
         .executeTakeFirst();
       if (!order) throw fail(HttpStatus.NOT_FOUND, ErrorCode.notFound, 'Order not found');
+      // A paid or closed table is final: nothing on it changes any more.
+      if (order.session_status !== 'open' && order.session_status !== 'bill_requested') {
+        throw fail(HttpStatus.CONFLICT, ErrorCode.invalidState, 'The table is already closed', {
+          sessionStatus: order.session_status,
+        });
+      }
       if (allowed && !allowed.includes(order.status)) {
         throw fail(HttpStatus.CONFLICT, ErrorCode.invalidState, `Order is ${order.status}`, {
           status: order.status,

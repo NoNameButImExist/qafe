@@ -79,8 +79,8 @@ function AppShell() {
     {
       title: t('nav.sectionWork'),
       items: [
-        { to: '/orders', icon: ClipboardList, label: t('nav.orders'), soon: true },
-        { to: '/reports', icon: ChartColumn, label: t('nav.reports'), soon: true },
+        { to: '/orders', icon: ClipboardList, label: t('nav.orders') },
+        { to: '/reports', icon: ChartColumn, label: t('nav.reports') },
         { to: '/settings', icon: Settings, label: t('nav.settings') },
       ],
     },

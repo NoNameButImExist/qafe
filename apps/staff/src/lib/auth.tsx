@@ -5,6 +5,7 @@ import { api, refreshSession, session } from './api';
 import { AuthContext, type AuthState } from './authContext';
 import { unsubscribePush } from './push';
 import { disconnectRealtime } from './realtime';
+import { setReadyConfirmed } from './sound';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: 'loading' });
@@ -24,6 +25,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: { venueSlug, username, password },
     });
     session.set(result.accessToken);
+    // A new sign-in asks "Spreman za rad" again.
+    setReadyConfirmed(false);
     setState({ status: 'authenticated', user: result.user });
   }, []);
 
@@ -34,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await api<void>('/auth/staff/logout', { method: 'POST' });
     } finally {
       disconnectRealtime();
+      setReadyConfirmed(false);
       session.clear();
       queryClient.clear();
       setState({ status: 'anonymous' });
