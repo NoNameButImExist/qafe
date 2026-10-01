@@ -16,6 +16,7 @@ const IMAGES = {
   'apps/staff': 'infra/docker/web.Dockerfile',
   'apps/panel': 'infra/docker/web.Dockerfile',
   'apps/admin': 'infra/docker/web.Dockerfile',
+  'apps/web': 'infra/docker/web.Dockerfile',
 };
 
 const entry = (path, extra = {}) => ({

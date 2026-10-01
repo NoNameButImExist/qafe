@@ -82,6 +82,7 @@ apps/
   staff/        waiter PWA + /kds (5174)
   panel/        venue owner panel (5175)
   admin/        platform admin + monitoring (5176)
+  web/          public landing page qafe.ba (5177), for venue owners and guests
 packages/
   config/       shared tsconfig (base, node, react), ESLint flat config, Prettier
   contracts/    Zod schemas: API DTOs and events

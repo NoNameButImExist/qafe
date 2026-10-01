@@ -21,6 +21,7 @@ Needs Node 24 (`fnm use` / `nvm use` reads `.nvmrc`), `corepack enable pnpm` onc
 | Panel (venue) | http://localhost:5175              | venue `demo-kafic`, user `sef` or `konobar`, `SEED_STAFF_PASSWORD` |
 | API           | http://localhost:3000/health/ready |                                                                    |
 | MinIO console | http://localhost:9001              | `S3_ACCESS_KEY` / `S3_SECRET_KEY`                                  |
+| Landing page  | http://localhost:5177              |                                                                    |
 
 ## Common commands
 

@@ -82,6 +82,9 @@
     "apps/staff": {
       "component": "staff"
     },
+    "apps/web": {
+      "component": "web"
+    },
     "apps/worker": {
       "component": "worker"
     },
