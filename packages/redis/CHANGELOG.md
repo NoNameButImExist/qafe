@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.1](https://github.com/NoNameButImExist/qafe/compare/redis-v0.2.0...redis-v0.2.1) (2026-10-01)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @qafe/config bumped to 0.2.0
+
 ## [0.2.0](https://github.com/NoNameButImExist/qafe/compare/redis-v0.1.0...redis-v0.2.0) (2026-10-01)
 
 

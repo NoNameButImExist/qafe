@@ -1,6 +1,6 @@
 {
   "name": "@qafe/redis",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "description": "Redis client, key prefixes per module and BullMQ queue factory.",
