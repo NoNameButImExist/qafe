@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.0](https://github.com/NoNameButImExist/qafe/compare/worker-v0.3.0...worker-v0.4.0) (2026-10-01)
+
+
+### Features
+
+* doradjen prikaz nardz, konobari mogu odbacivati, popravljen CI/… ([4145b11](https://github.com/NoNameButImExist/qafe/commit/4145b11e913fa7e5e809122dcf0cbcfe72247e16))
+* doradjen prikaz nardz, konobari mogu odbacivati, popravljen CI/CD check samo izmijenjene ([925c70f](https://github.com/NoNameButImExist/qafe/commit/925c70f555162e70163511982b6e95230e3b7b7b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @qafe/contracts bumped to 0.4.0
+
 ## [0.3.0](https://github.com/NoNameButImExist/qafe/compare/worker-v0.2.1...worker-v0.3.0) (2026-10-01)
 
 
