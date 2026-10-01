@@ -8,21 +8,44 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "migrations"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests --exclude '**/*.integration.test.ts'",
+    "test:integration": "vitest run integration",
+    "db:migrate": "dbmate --env-file ../../.env -e DATABASE_ADMIN_URL -d migrations --no-dump-schema --wait up",
+    "db:rollback": "dbmate --env-file ../../.env -e DATABASE_ADMIN_URL -d migrations --no-dump-schema --wait rollback",
+    "db:status": "dbmate --env-file ../../.env -e DATABASE_ADMIN_URL -d migrations --no-dump-schema --wait status",
+    "db:reset": "dbmate --env-file ../../.env -e DATABASE_ADMIN_URL -d migrations --no-dump-schema --wait drop && dbmate --env-file ../../.env -e DATABASE_ADMIN_URL -d migrations --no-dump-schema --wait up",
+    "db:codegen": "kysely-codegen --env-file ../../.env --url 'env(DATABASE_ADMIN_URL)' --dialect postgres --exclude-pattern 'public.*' --out-file src/generated/db.ts",
+    "db:seed": "tsx --env-file=../../.env seed/seed.ts"
   },
   "devDependencies": {
+    "@qafe/auth": "workspace:*",
     "@qafe/config": "workspace:*",
+    "@testcontainers/postgresql": "^12.2.0",
     "@types/node": "^24.19.0",
+    "@types/pg": "^8.23.1",
+    "dbmate": "^2.36.0",
+    "kysely-codegen": "^0.20.0",
+    "testcontainers": "^12.2.0",
+    "tsx": "^4.23.15",
     "typescript": "~6.0.3",
     "vitest": "^5.0.2"
+  },
+  "dependencies": {
+    "kysely": "^0.29.6",
+    "pg": "^8.23.0"
   }
 }

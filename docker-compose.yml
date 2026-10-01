@@ -1,0 +1,93 @@
+# Base definition: services, networks, volumes, health checks.
+# docker-compose.override.yml (dev) is loaded automatically and opens ports to the host.
+# More services (redis, nats, minio, observability, apps) are added in phase 6.
+
+name: qafe
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '3'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    profiles: [infra]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-qafe}
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER:-qafe_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Set POSTGRES_ADMIN_PASSWORD in .env}
+      SVC_CORE_PASSWORD: ${SVC_CORE_PASSWORD:?Set SVC_CORE_PASSWORD in .env}
+      SVC_CATALOG_PASSWORD: ${SVC_CATALOG_PASSWORD:?Set SVC_CATALOG_PASSWORD in .env}
+      SVC_ORDERING_PASSWORD: ${SVC_ORDERING_PASSWORD:?Set SVC_ORDERING_PASSWORD in .env}
+      SVC_BILLING_PASSWORD: ${SVC_BILLING_PASSWORD:?Set SVC_BILLING_PASSWORD in .env}
+      SVC_AUDIT_PASSWORD: ${SVC_AUDIT_PASSWORD:?Set SVC_AUDIT_PASSWORD in .env}
+      SVC_REPORTING_PASSWORD: ${SVC_REPORTING_PASSWORD:?Set SVC_REPORTING_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [internal]
+    logging: *logging
+
+  # S3-compatible storage for menu images and logos. The minio/minio image is no longer
+  # published on Docker Hub; Chainguard builds MinIO from source (only :latest is free).
+  minio:
+    image: cgr.dev/chainguard/minio:latest
+    profiles: [infra]
+    restart: unless-stopped
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?Set S3_ACCESS_KEY in .env}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?Set S3_SECRET_KEY in .env}
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      # No curl, wget or grep in the image: plain HTTP over bash's /dev/tcp.
+      test:
+        [
+          'CMD-SHELL',
+          "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /minio/health/ready HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && read -r status <&3 && [[ $$status == *' 200 '* ]]",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [internal]
+    logging: *logging
+
+  # One-off: creates the bucket (the client image has no shell, so one command per service).
+  minio-bucket:
+    image: cgr.dev/chainguard/minio-client:latest
+    profiles: [infra]
+    command: ['mb', '--ignore-existing', 'qafe/${S3_BUCKET_MENU_IMAGES:-menu-images}']
+    environment:
+      MC_HOST_qafe: http://${S3_ACCESS_KEY}:${S3_SECRET_KEY}@minio:9000
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks: [internal]
+
+  # One-off: anyone may read images (keys are random UUIDs); only the API writes.
+  minio-policy:
+    image: cgr.dev/chainguard/minio-client:latest
+    profiles: [infra]
+    command: ['anonymous', 'set', 'download', 'qafe/${S3_BUCKET_MENU_IMAGES:-menu-images}']
+    environment:
+      MC_HOST_qafe: http://${S3_ACCESS_KEY}:${S3_SECRET_KEY}@minio:9000
+    depends_on:
+      minio-bucket:
+        condition: service_completed_successfully
+    networks: [internal]
+
+networks:
+  internal:
+
+volumes:
+  pgdata:
+  miniodata:

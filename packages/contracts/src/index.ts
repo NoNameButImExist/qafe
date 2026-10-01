@@ -1,3 +1,8 @@
-// Zod schemas shared by API and events (API DTOs, event types).
-// Implemented in phase 4.
-export {};
+export * from './audit.js';
+export * from './auth.js';
+export * from './catalog.js';
+export * from './common.js';
+export * from './events.js';
+export * from './users.js';
+export * from './venue-settings.js';
+export * from './venues.js';

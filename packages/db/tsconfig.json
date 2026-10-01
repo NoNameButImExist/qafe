@@ -1,4 +1,4 @@
 {
   "extends": "@qafe/config/tsconfig/node.json",
-  "include": ["src"]
+  "include": ["src", "seed", "vitest.config.ts"]
 }

@@ -1,10 +1,7 @@
 import 'reflect-metadata';
-import { NestFactory } from '@nestjs/core';
-import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
-import { AppModule } from './app.module.js';
+import { createApp } from './bootstrap.js';
+import { loadConfig } from './config/config.js';
 
-const port = Number(process.env.PORT ?? 3000);
-
-const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter());
-app.enableShutdownHooks();
-await app.listen(port, '0.0.0.0');
+const config = loadConfig();
+const app = await createApp(config);
+await app.listen(config.port, '0.0.0.0');

@@ -15,7 +15,18 @@
     "check": "turbo run lint typecheck test build",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "husky"
+    "prepare": "husky",
+    "docker:infra": "docker compose --profile infra up -d --wait postgres minio && docker compose --profile infra up --no-log-prefix minio-bucket minio-policy",
+    "docker:down": "docker compose --profile '*' down",
+    "docker:logs": "docker compose --profile '*' logs -f",
+    "db:migrate": "pnpm --filter @qafe/db db:migrate",
+    "db:rollback": "pnpm --filter @qafe/db db:rollback",
+    "db:status": "pnpm --filter @qafe/db db:status",
+    "db:reset": "pnpm --filter @qafe/db db:reset",
+    "db:codegen": "pnpm --filter @qafe/db db:codegen && prettier --write packages/db/src/generated",
+    "db:seed": "pnpm --filter @qafe/db build && pnpm --filter @qafe/auth build && pnpm --filter @qafe/db db:seed",
+    "keys:generate": "node scripts/generate-jwt-keys.mjs",
+    "test:integration": "turbo run test:integration"
   },
   "prettier": "@qafe/config/prettier",
   "lint-staged": {

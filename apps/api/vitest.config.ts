@@ -6,5 +6,8 @@ export default defineConfig({
   plugins: [swc.vite({ module: { type: 'es6' } })],
   test: {
     include: ['src/**/*.test.ts'],
+    // Integration tests start Docker containers.
+    hookTimeout: 180_000,
+    testTimeout: 30_000,
   },
 });

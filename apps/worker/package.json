@@ -6,17 +6,28 @@
   "description": "qafe.ba worker: outbox relay and BullMQ jobs.",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "dev": "tsc-watch -p tsconfig.build.json --noClear --onSuccess \"node --enable-source-maps dist/main.js\"",
+    "dev": "tsc-watch -p tsconfig.build.json --noClear --onSuccess \"node --env-file-if-exists=../../.env --enable-source-maps dist/main.js\"",
     "start": "node --enable-source-maps dist/main.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run --exclude '**/*.integration.test.ts'",
+    "test:integration": "vitest run integration"
   },
   "devDependencies": {
     "@qafe/config": "workspace:*",
+    "@testcontainers/postgresql": "^12.2.0",
     "@types/node": "^24.19.0",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.0",
+    "testcontainers": "^12.2.0",
     "tsc-watch": "^7.2.1",
     "typescript": "~6.0.3",
     "vitest": "^5.0.2"
+  },
+  "dependencies": {
+    "@qafe/contracts": "workspace:*",
+    "@qafe/db": "workspace:*",
+    "kysely": "^0.29.6",
+    "zod": "^4.6.5"
   }
 }
