@@ -65,12 +65,34 @@ export const StaffOrder = SessionOrder.extend({
   tableId: z.uuid(),
   tableLabel: z.string(),
   source: z.enum(['guest_qr', 'staff']),
+  /** The table session: "closed" = paid and closed, "abandoned" = closed without payment. */
+  sessionStatus: SessionStatus,
 });
 export type StaffOrder = z.infer<typeof StaffOrder>;
 
 /** GET /staff/orders — live orders of the venue, oldest first (FR-KON-04). */
-export const StaffOrderList = z.object({ orders: z.array(StaffOrder) });
+export const StaffOrderList = z.object({
+  orders: z.array(StaffOrder),
+  /** The owner allows rejecting orders (FR-SEF-04), so the app offers "Odbij". */
+  orderRejectionEnabled: z.boolean(),
+});
 export type StaffOrderList = z.infer<typeof StaffOrderList>;
+
+/** GET /staff/orders/day — every order of one business day, all areas (FR-SEF-23). */
+export const DayOrdersQuery = z.object({
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'date')
+    .optional(),
+});
+export type DayOrdersQuery = z.infer<typeof DayOrdersQuery>;
+
+export const DayOrderList = z.object({
+  /** The business day shown; today's when none was asked for. */
+  date: z.string(),
+  orders: z.array(StaffOrder),
+});
+export type DayOrderList = z.infer<typeof DayOrderList>;
 
 export const StaffSessionGuest = z.object({
   id: z.uuid(),

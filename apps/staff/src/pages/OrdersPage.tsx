@@ -60,7 +60,12 @@ export function OrdersPage() {
       ) : (
         <div className="flex flex-col gap-3">
           {list.map((order) => (
-            <OrderCard key={order.id} order={order} showTable />
+            <OrderCard
+              key={order.id}
+              order={order}
+              showTable
+              rejectionEnabled={orders.data.orderRejectionEnabled}
+            />
           ))}
         </div>
       )}

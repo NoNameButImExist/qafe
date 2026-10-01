@@ -16,6 +16,8 @@ const en: Messages = {
       suspended: 'The venue is not taking orders right now. You can still browse the menu.',
       closed: 'The venue is closed. You can still browse the menu.',
       ordering_disabled: 'Ordering by phone is turned off right now. Please ask the waiter.',
+      outside_hours:
+        'The venue is closed right now. You can browse the menu and order during opening hours.',
     },
   },
   landing: {

@@ -38,6 +38,8 @@ export interface OrderingSettings {
   deviceBlockHours: number;
   orderRejectionEnabled: boolean;
   paymentMethods: { method: PaymentMethod; isDefault: boolean }[];
+  /** Within opening hours now (or the venue has no schedule), FR-SEF-02, FR-GOS-03. */
+  openNow: boolean;
 }
 
 /** Areas and active tables of a venue, in display order (FR-KON-15). */
@@ -153,7 +155,25 @@ export class VenueDirectory {
         .where('is_enabled', '=', true)
         .orderBy('sort_order')
         .execute();
+      // Local time in the venue's zone; an interval closing at or before it opens runs past
+      // midnight, so yesterday's late interval may still be open.
+      const { rows } = await sql<{ open_now: boolean }>`
+        with now_local as (select (now() at time zone ${venue.timezone}) as t),
+             hours as (select day_of_week, opens_at, closes_at from core.venue_opening_hours)
+        select not exists (select 1 from hours)
+            or exists (
+              select 1 from hours, now_local n
+               where (opens_at < closes_at
+                      and day_of_week = extract(isodow from n.t)
+                      and n.t::time >= opens_at and n.t::time < closes_at)
+                  or (opens_at >= closes_at
+                      and ((day_of_week = extract(isodow from n.t) and n.t::time >= opens_at)
+                        or (day_of_week = extract(isodow from n.t - interval '1 day')
+                            and n.t::time < closes_at)))
+            ) as open_now
+      `.execute(trx);
       return {
+        openNow: rows[0]?.open_now ?? true,
         status: venue.status,
         guestOrderingEnabled: venue.guest_ordering_enabled,
         vatRate: venue.vat_rate,
@@ -208,5 +228,19 @@ export class VenueDirectory {
         .executeTakeFirst(),
     );
     return row ?? null;
+  }
+
+  /** Display names of members (actor labels for reports), by member id. */
+  async memberNames(venueId: string, memberIds: string[]): Promise<Map<string, string>> {
+    if (memberIds.length === 0) return new Map();
+    const rows = await this.db.withTenant({ venueId, isSuperAdmin: false }, (trx) =>
+      trx
+        .selectFrom('core.venue_members as m')
+        .innerJoin('core.users as u', 'u.id', 'm.user_id')
+        .select(['m.id', 'u.full_name'])
+        .where('m.id', 'in', memberIds)
+        .execute(),
+    );
+    return new Map(rows.map((r) => [r.id, r.full_name]));
   }
 }

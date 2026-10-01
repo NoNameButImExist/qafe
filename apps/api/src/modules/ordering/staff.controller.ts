@@ -8,10 +8,12 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
   AddItemsRequest,
+  DayOrdersQuery,
   ManualOrderRequest,
   PushSubscriptionRequest,
   PushUnsubscribeRequest,
@@ -23,6 +25,7 @@ import {
   ResolveDisputeRequest,
   StaffMessageRequest,
   type AddItemsInput,
+  type DayOrderList,
   type Floor,
   type PlaceOrderInput,
   type PushConfig,
@@ -132,6 +135,15 @@ export class StaffController {
     return this.orders.list(staff);
   }
 
+  @Get('orders/day')
+  @RequirePermission('orders.view_all', 'orders.view')
+  day(
+    @CurrentStaff() staff: StaffClaims,
+    @Query(new ZodPipe(DayOrdersQuery)) query: DayOrdersQuery,
+  ): Promise<DayOrderList> {
+    return this.orders.day(staff, query.date);
+  }
+
   @Post('tables/:tableId/orders')
   @RequirePermission('orders.create')
   manual(
@@ -169,7 +181,9 @@ export class StaffController {
 
   @Post('orders/:id/reject')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @RequirePermission('orders.reject')
+  // The owner's setting (FR-SEF-04) lets anyone who works orders reject them; the service
+  // checks the setting.
+  @RequirePermission('orders.reject', 'orders.update')
   reject(
     @CurrentStaff() staff: StaffClaims,
     @Param('id', uuid) id: string,

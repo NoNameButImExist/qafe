@@ -10,6 +10,20 @@ export const Money = z
 export const PaymentMethodCode = z.enum(['cash', 'card']);
 export type PaymentMethodCode = z.infer<typeof PaymentMethodCode>;
 
+const Time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'time');
+
+/**
+ * Opening hours (FR-SEF-02): one interval per weekday (1 = Monday … 7 = Sunday). A closing time
+ * at or before the opening time runs past midnight (18:00–02:00). A day without an entry is
+ * closed; no entries at all means no schedule (always open).
+ */
+export const OpeningHours = z
+  .array(z.object({ day: z.number().int().min(1).max(7), opensAt: Time, closesAt: Time }))
+  .max(7)
+  .refine((days) => new Set(days.map((d) => d.day)).size === days.length, 'duplicate_day')
+  .refine((days) => days.every((d) => d.opensAt !== d.closesAt), 'empty_interval');
+export type OpeningHours = z.infer<typeof OpeningHours>;
+
 /** GET /venue — the owner's view of their venue (panel). */
 export const VenueSettings = z.object({
   id: z.uuid(),
@@ -43,6 +57,7 @@ export const VenueSettings = z.object({
     default: PaymentMethodCode,
   }),
   modules: z.array(z.string()),
+  openingHours: OpeningHours,
 });
 export type VenueSettings = z.infer<typeof VenueSettings>;
 
@@ -95,6 +110,8 @@ export const UpdateVenueSettingsRequest = z.object({
     .refine((p) => p.cash || p.card, { message: 'at_least_one', path: ['cash'] })
     .refine((p) => p[p.default], { message: 'default_disabled', path: ['default'] })
     .optional(),
+  /** Replaces the whole week. */
+  openingHours: OpeningHours.optional(),
 });
 export type UpdateVenueSettingsRequest = z.input<typeof UpdateVenueSettingsRequest>;
 export type UpdateVenueSettingsInput = z.output<typeof UpdateVenueSettingsRequest>;

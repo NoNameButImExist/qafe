@@ -208,18 +208,26 @@ describe('working an order (FR-KON-04, 06..11, 13, FR-GOS-11, 12)', () => {
 
   it('rejects only when the venue allows it, and cancels only with the permission (FR-KON-09, 13)', async () => {
     const { orderId } = await tableWithOrder(f.tables.T4!);
+    // Off by default (FR-SEF-04): not even the waiter or the owner may reject.
     expect(
-      (await as(waiter).post(`/staff/orders/${orderId}/reject`, { reason: 'Zatvaramo' }))
-        .statusCode,
-    ).toBe(403);
+      errorCode(await as(waiter).post(`/staff/orders/${orderId}/reject`, { reason: 'Zatvaramo' })),
+    ).toBe('rejection_disabled');
     expect(
       errorCode(await as(owner).post(`/staff/orders/${orderId}/reject`, { reason: 'Zatvaramo' })),
     ).toBe('rejection_disabled');
+    expect((await as(waiter).get<StaffOrderList>('/staff/orders')).orderRejectionEnabled).toBe(
+      false,
+    );
     await t.admin.query(`UPDATE core.venues SET order_rejection_enabled = true WHERE id = $1`, [
       f.venueId,
     ]);
+    // On: the waiter sees it and may reject.
+    expect((await as(waiter).get<StaffOrderList>('/staff/orders')).orderRejectionEnabled).toBe(
+      true,
+    );
     expect(
-      (await as(owner).post(`/staff/orders/${orderId}/reject`, { reason: 'Zatvaramo' })).statusCode,
+      (await as(waiter).post(`/staff/orders/${orderId}/reject`, { reason: 'Zatvaramo' }))
+        .statusCode,
     ).toBe(204);
     await t.admin.query(`UPDATE core.venues SET order_rejection_enabled = false WHERE id = $1`, [
       f.venueId,

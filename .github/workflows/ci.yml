@@ -59,6 +59,25 @@ jobs:
         id: images
         run: node .github/scripts/image-matrix.mjs affected >> "$GITHUB_OUTPUT"
 
+      # What this run checked, on the run's summary page: only changed packages and the
+      # packages that depend on them (a change in contracts or ui reaches every app using it).
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Checked packages"
+            if [[ -z "$TURBO_SCM_BASE" || "$TURBO_SCM_BASE" =~ ^0+$ ]]; then
+              echo "All packages (no base commit to compare with)."
+            else
+              pnpm --silent turbo ls --affected --output=json \
+                | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); const p=d.packages.items.map(i=>i.name); console.log(p.length ? p.map(n=>"- `"+n+"`").join("\n") : "None: no package changed.")'
+            fi
+            echo
+            echo "### Docker images to build"
+            echo '${{ steps.images.outputs.images }}' \
+              | node -e 'const i=JSON.parse(require("fs").readFileSync(0,"utf8")||"[]"); console.log(i.length ? i.map(x=>"- `qafe-"+x.app+"`").join("\n") : "None.")'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   integration:
     name: Integration tests (Postgres, RLS)
     # NFR-09: venue isolation is tested against a real Postgres on every PR (Testcontainers).

@@ -41,6 +41,7 @@ export async function testConfig(
       catalogPassword: db.connection('catalog').password,
       orderingPassword: db.connection('ordering').password,
       billingPassword: db.connection('billing').password,
+      reportingPassword: db.connection('reporting').password,
     },
     redis: { host: redis.getHost(), port: redis.getPort(), password: undefined },
     storage: { driver: 'memory' },

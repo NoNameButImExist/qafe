@@ -10,6 +10,7 @@ const Env = z.object({
   SVC_CATALOG_PASSWORD: z.string().min(1),
   SVC_ORDERING_PASSWORD: z.string().min(1),
   SVC_BILLING_PASSWORD: z.string().min(1),
+  SVC_REPORTING_PASSWORD: z.string().min(1),
   // Web Push for staff (FR-KON-05); without keys no notifications are sent.
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),

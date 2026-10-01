@@ -338,6 +338,7 @@ const bs = {
       primary_color: 'Boja',
       vat_rate: 'PDV',
       payments: 'Plaćanje',
+      opening_hours: 'Radno vrijeme',
       table: 'Sto',
       number: 'Broj narudžbe',
       total: 'Iznos',

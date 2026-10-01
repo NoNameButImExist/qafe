@@ -175,3 +175,38 @@ export const OrderingEvent = z.object({
   actorKind: z.enum(['guest', 'staff']),
 });
 export type OrderingEvent = z.infer<typeof OrderingEvent>;
+
+/**
+ * A table was paid (ordering.outbox, type "session.settled"): every billed item with the
+ * snapshot reporting needs, so the reporting module never reads another schema (FR-SEF-24).
+ */
+export const SessionSettledEvent = z.object({
+  type: z.literal('session.settled'),
+  venueId: z.uuid(),
+  sessionId: z.uuid(),
+  paymentId: z.uuid(),
+  paymentMethod: z.enum(['cash', 'card', 'online']),
+  tableLabel: z.string(),
+  areaName: z.string().nullable(),
+  settledAt: z.string(),
+  items: z.array(
+    z.object({
+      orderItemId: z.uuid(),
+      orderId: z.uuid(),
+      businessDate: z.string(),
+      /** When the order was placed, in the venue's local time. */
+      hourOfDay: z.number().int().min(0).max(23),
+      dayOfWeek: z.number().int().min(1).max(7),
+      servedAt: z.string(),
+      memberId: z.uuid().nullable(),
+      memberName: z.string().nullable(),
+      itemId: z.uuid(),
+      itemName: z.string(),
+      categoryName: z.string().nullable(),
+      quantity: z.number().int(),
+      revenue: z.string(),
+      vatAmount: z.string(),
+    }),
+  ),
+});
+export type SessionSettledEvent = z.infer<typeof SessionSettledEvent>;

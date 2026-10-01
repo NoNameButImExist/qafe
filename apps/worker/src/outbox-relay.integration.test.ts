@@ -3,9 +3,10 @@ import { TenantDatabase } from '@qafe/db';
 import { startTestDatabase, type TestDatabase } from '@qafe/db/testing';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { AuditWriter } from './audit-writer.js';
+import { AuditWriter, isAudited } from './audit-writer.js';
 import { OutboxRelay } from './outbox-relay.js';
 import { PushNotifier } from './push-notifier.js';
+import { ReportingWriter } from './reporting-writer.js';
 
 const ACTOR = { id: '11111111-1111-4111-8111-111111111111', label: 'Qafe Admin (admin@qafe.ba)' };
 const VENUE = '22222222-2222-4222-8222-222222222222';
@@ -157,6 +158,67 @@ describe('web push for staff (FR-KON-05)', () => {
       expect(left.rows).toEqual([{ endpoint: 'https://push.example.com/live' }]);
     } finally {
       await ordering.close();
+    }
+  });
+});
+
+describe('report facts (FR-SEF-24)', () => {
+  it('writes one fact per paid item and ignores a redelivery', async () => {
+    const reporting = new TenantDatabase(testDb.connection('reporting'));
+    try {
+      const item = (n: number) => ({
+        orderItemId: `8888888${n}-8888-4888-8888-888888888888`,
+        orderId: '99999999-9999-4999-8999-999999999999',
+        businessDate: '2026-09-10',
+        hourOfDay: 21,
+        dayOfWeek: 4,
+        servedAt: '2026-09-10T19:30:00.000Z',
+        memberId: null,
+        memberName: null,
+        itemId: '77777777-7777-4777-8777-777777777777',
+        itemName: 'Espresso',
+        categoryName: 'Topli napici',
+        quantity: n,
+        revenue: (2 * n).toFixed(2),
+        vatAmount: '0.29',
+      });
+      const event = {
+        source: 'ordering',
+        id: '10',
+        venueId: VENUE,
+        type: 'session.settled',
+        aggregateId: VENUE,
+        createdAt: new Date(),
+        payload: {
+          type: 'session.settled',
+          venueId: VENUE,
+          sessionId: '55555555-5555-4555-8555-555555555555',
+          paymentId: '66666666-6666-4666-8666-666666666666',
+          paymentMethod: 'card',
+          tableLabel: 'T4',
+          areaName: 'Terasa',
+          settledAt: '2026-09-10T20:00:00.000Z',
+          items: [item(1), item(2)],
+        },
+      };
+      const writer = new ReportingWriter(reporting);
+      await writer.handle([event]);
+      await writer.handle([event]);
+      const { rows } = await admin.query<{
+        quantity: number;
+        revenue: string;
+        area_name: string;
+        payment_method: string;
+      }>(
+        'SELECT quantity, revenue, area_name, payment_method FROM reporting.order_item_facts ORDER BY quantity',
+      );
+      expect(rows).toEqual([
+        { quantity: 1, revenue: '2.00', area_name: 'Terasa', payment_method: 'card' },
+        { quantity: 2, revenue: '4.00', area_name: 'Terasa', payment_method: 'card' },
+      ]);
+      expect(isAudited(event)).toBe(false);
+    } finally {
+      await reporting.close();
     }
   });
 });

@@ -9,6 +9,7 @@ import { BillingModule } from './modules/billing/index.js';
 import { CatalogModule } from './modules/catalog/index.js';
 import { CoreModule } from './modules/core/index.js';
 import { OrderingModule } from './modules/ordering/index.js';
+import { ReportingModule } from './modules/reporting/index.js';
 
 @Module({})
 class ConfigModule {}
@@ -33,6 +34,7 @@ export class AppModule {
         CatalogModule,
         OrderingModule,
         BillingModule,
+        ReportingModule,
       ],
       controllers: [HealthController],
     };

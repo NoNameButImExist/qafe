@@ -43,7 +43,12 @@ export type DisputeStatus = z.infer<typeof DisputeStatus>;
 // ---------- Guest: venue and menu ----------
 
 /** Why a guest can see the menu but not order (FR-GOS-03). */
-export const OrderingClosedReason = z.enum(['suspended', 'closed', 'ordering_disabled']);
+export const OrderingClosedReason = z.enum([
+  'suspended',
+  'closed',
+  'ordering_disabled',
+  'outside_hours',
+]);
 export type OrderingClosedReason = z.infer<typeof OrderingClosedReason>;
 
 /** GET /guest/venue — the venue of the subdomain the guest is on. */

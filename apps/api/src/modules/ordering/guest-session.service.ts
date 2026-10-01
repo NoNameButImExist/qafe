@@ -102,6 +102,7 @@ export function closedReason(settings: OrderingSettings): GuestVenue['closedReas
   if (settings.status === 'suspended') return 'suspended';
   if (settings.status !== 'active') return 'closed';
   if (!settings.guestOrderingEnabled) return 'ordering_disabled';
+  if (!settings.openNow) return 'outside_hours';
   return null;
 }
 

@@ -43,7 +43,8 @@ export function OrderCard({
   const can = {
     update: useCan('orders.update'),
     ret: useCan('orders.return'),
-    reject: useCan('orders.reject'),
+    // FR-SEF-04: with the owner's setting on, whoever works orders may reject them.
+    reject: useCan('orders.reject', 'orders.update'),
     cancel: useCan('orders.cancel'),
     add: useCan('orders.add_items'),
     disputes: useCan('orders.disputes'),
@@ -252,6 +253,11 @@ export function OrderCard({
             {t('orders.accept')}
           </Button>
         )}
+        {order.status === 'new' && can.reject && rejectionEnabled && (
+          <Button size="lg" variant="secondary" onClick={() => openDialog({ kind: 'reject' })}>
+            {t('orders.reject')}
+          </Button>
+        )}
         {['accepted', 'preparing', 'ready'].includes(order.status) && can.update && (
           <Button
             size="lg"
@@ -285,11 +291,6 @@ export function OrderCard({
           {order.status === 'new' && can.ret && (
             <Button size="sm" variant="secondary" onClick={() => openDialog({ kind: 'return' })}>
               {t('orders.returnToGuest')}
-            </Button>
-          )}
-          {order.status === 'new' && can.reject && rejectionEnabled && (
-            <Button size="sm" variant="secondary" onClick={() => openDialog({ kind: 'reject' })}>
-              {t('orders.reject')}
             </Button>
           )}
           {can.cancel && (
