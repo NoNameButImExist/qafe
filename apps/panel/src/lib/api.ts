@@ -102,6 +102,10 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
 }
 
 const KNOWN = [
+  'password_change_required',
+  'invalid_code',
+  'mfa_required',
+  'mfa_unavailable',
   'invalid_credentials',
   'account_disabled',
   'venue_closed',

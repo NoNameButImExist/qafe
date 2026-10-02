@@ -1,3 +1,4 @@
+import { Public } from '../../common/auth/auth.guard.js';
 import {
   Body,
   Controller,
@@ -40,6 +41,8 @@ const uuid = new ParseUUIDPipe();
 const QrToken = z.string().regex(/^[A-Za-z0-9_-]{16,64}$/);
 
 /** Guest API on <slug>.<domain>/api/guest/* (FR-GOS). No login: the device cookie is the identity. */
+// Public: guests have no account; GuestGuard identifies the venue and the device.
+@Public()
 @Controller('guest')
 @UseGuards(GuestGuard)
 export class GuestController {

@@ -49,9 +49,12 @@ export const CreateStaffRequest = z
     roleId: z.uuid(),
     password: password.optional(),
     pin: Pin.optional(),
+    /** The member changes the password at the first sign-in (FR-SEF-01); on by default. */
+    requirePasswordChange: z.boolean().default(true),
   })
   .refine((r) => r.password || r.pin, { message: 'password_or_pin', path: ['password'] });
-export type CreateStaffRequest = z.infer<typeof CreateStaffRequest>;
+export type CreateStaffRequest = z.input<typeof CreateStaffRequest>;
+export type CreateStaffInput = z.output<typeof CreateStaffRequest>;
 
 export const UpdateStaffRequest = z.object({
   fullName: z.string().trim().min(2).max(120).optional(),
@@ -60,8 +63,13 @@ export const UpdateStaffRequest = z.object({
 });
 export type UpdateStaffRequest = z.infer<typeof UpdateStaffRequest>;
 
-export const SetStaffPasswordRequest = z.object({ password });
-export type SetStaffPasswordRequest = z.infer<typeof SetStaffPasswordRequest>;
+export const SetStaffPasswordRequest = z.object({
+  password,
+  /** The member changes it at the next sign-in; on by default (ignored for one's own). */
+  requirePasswordChange: z.boolean().default(true),
+});
+export type SetStaffPasswordRequest = z.input<typeof SetStaffPasswordRequest>;
+export type SetStaffPasswordInput = z.output<typeof SetStaffPasswordRequest>;
 
 export const SetStaffPinRequest = z.object({ pin: Pin });
 export type SetStaffPinRequest = z.infer<typeof SetStaffPinRequest>;

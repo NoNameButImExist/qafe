@@ -7,6 +7,7 @@ import { OverviewPage } from './pages/OverviewPage';
 import { validateAuditSearch } from './lib/auditSearch';
 import { validateUsersSearch } from './lib/usersSearch';
 import { validateVenuesSearch } from './lib/venuesSearch';
+import { AccountPage } from './pages/AccountPage';
 import { AuditPage } from './pages/AuditPage';
 import { ModulesPage } from './pages/ModulesPage';
 import { UsersPage } from './pages/UsersPage';
@@ -56,6 +57,12 @@ const usersRoute = createRoute({
   component: UsersPage,
 });
 
+const accountRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/account',
+  component: AccountPage,
+});
+
 const modulesRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/modules',
@@ -80,6 +87,7 @@ const soon = (path: '/system', titleKey: `nav.${string}`, refs: string) =>
 const routeTree = rootRoute.addChildren([
   loginRoute,
   appRoute.addChildren([
+    accountRoute,
     overviewRoute,
     venuesRoute,
     venueDetailRoute,

@@ -2,7 +2,7 @@ import type { GuestMenuItem, GuestSessionState, GuestVenue } from '@qafe/contrac
 import { cn, Notice, useNotice } from '@qafe/ui';
 import { useQuery } from '@tanstack/react-query';
 import { ClipboardList, ReceiptText, ShoppingBag, UtensilsCrossed } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Banners } from '../components/Banners';
 import { BillView } from '../components/BillView';
@@ -31,6 +31,24 @@ export function SessionScreen({ venue, state }: { venue: GuestVenue; state: Gues
   const [cartOpen, setCartOpen] = useState(false);
   const [tableOpen, setTableOpen] = useState(false);
   const [notice, setNotice] = useNotice();
+
+  // A short vibration when an order changes status or this device is let in (Android; iOS
+  // browsers do not vibrate). The first state after loading is only remembered.
+  const seen = useRef<Map<string, string> | null>(null);
+  useEffect(() => {
+    const now = new Map(state.orders.map((o) => [o.id, `${o.status}|${o.changes.length}`]));
+    now.set('me', state.me.status);
+    const before = seen.current;
+    seen.current = now;
+    if (!before) return;
+    if ([...now].some(([key, value]) => before.has(key) && before.get(key) !== value)) {
+      try {
+        navigator.vibrate?.([120, 60, 120]);
+      } catch {
+        // Not supported.
+      }
+    }
+  }, [state]);
 
   useEffect(() => {
     // Braces matter: newer browsers return a Promise from scrollTo.

@@ -15,8 +15,9 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Brand, cn, LanguageSwitch, StatusBadge, ThemeToggle } from '@qafe/ui';
+import { ChangePasswordForm, Brand, cn, LanguageSwitch, StatusBadge, ThemeToggle } from '@qafe/ui';
 import { initials } from '../lib/text';
+import { errorKey } from '../lib/api';
 import { useAuth, useStaff } from '../lib/useAuth';
 
 type Path = '/' | '/menu' | '/tables' | '/staff' | '/orders' | '/reports' | '/settings';
@@ -38,7 +39,8 @@ export function ProtectedBare() {
 }
 
 function Protected({ children }: { children: () => React.ReactNode }) {
-  const { state } = useAuth();
+  const { state, changePassword, logout } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -56,6 +58,17 @@ function Protected({ children }: { children: () => React.ReactNode }) {
       <div className="grid min-h-dvh place-items-center">
         <LoaderCircle className="size-6 animate-spin text-primary" aria-label="Loading" />
       </div>
+    );
+  }
+  // FR-SEF-01: with a temporary password the only thing to do is change it.
+  if (state.user.mustChangePassword) {
+    return (
+      <ChangePasswordForm
+        variant="screen"
+        onSubmit={changePassword}
+        errorText={(error) => t(errorKey(error))}
+        onLogout={() => void logout()}
+      />
     );
   }
   return children();

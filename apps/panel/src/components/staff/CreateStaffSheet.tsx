@@ -18,6 +18,7 @@ export function CreateStaffSheet({ staff, onClose }: { staff: VenueStaff; onClos
   const [roleId, setRoleId] = useState(defaultRole?.id ?? '');
   const [usePassword, setUsePassword] = useState(true);
   const [password, setPassword] = useState(() => generatePassword());
+  const [requireChange, setRequireChange] = useState(true);
   const [usePin, setUsePin] = useState(false);
   const [pin, setPin] = useState(() => generatePin());
 
@@ -27,6 +28,7 @@ export function CreateStaffSheet({ staff, onClose }: { staff: VenueStaff; onClos
     roleId,
     password: usePassword ? password : undefined,
     pin: usePin ? pin : undefined,
+    requirePasswordChange: usePassword && requireChange,
   };
   const parsed = CreateStaffRequest.safeParse(body);
   const create = useStaffMutation(() => api<VenueStaff>('/venue/staff', { method: 'POST', body }));
@@ -144,6 +146,20 @@ export function CreateStaffSheet({ staff, onClose }: { staff: VenueStaff; onClos
                 onChange={setPassword}
                 onGenerate={() => setPassword(generatePassword())}
               />
+            )}
+            {usePassword && (
+              <label className="flex items-start gap-2.5 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-4 accent-[var(--primary)]"
+                  checked={requireChange}
+                  onChange={(e) => setRequireChange(e.target.checked)}
+                />
+                <span>
+                  <span className="font-semibold">{t('staff.requireChange')}</span>
+                  <span className="block text-xs text-muted">{t('staff.requireChangeHint')}</span>
+                </span>
+              </label>
             )}
             <label className="mt-1 flex items-center gap-2.5 text-sm font-semibold text-ink">
               <input

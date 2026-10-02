@@ -11,12 +11,22 @@ import {
   Users,
   X,
   type LucideIcon,
+  UserCog,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { errorKey } from '../lib/api';
 import { useAuth, useUser } from '../lib/useAuth';
 import { initials } from '../lib/text';
-import { Brand, cn, LanguageSwitch, Menu, MenuItem, ThemeToggle } from '@qafe/ui';
+import {
+  ChangePasswordForm,
+  Brand,
+  cn,
+  LanguageSwitch,
+  Menu,
+  MenuItem,
+  ThemeToggle,
+} from '@qafe/ui';
 
 interface NavItem {
   to: '/' | '/venues' | '/users' | '/modules' | '/audit' | '/system';
@@ -27,7 +37,8 @@ interface NavItem {
 
 /** Protected area: waits for the session, sends anonymous visitors to /login. */
 export function ProtectedLayout() {
-  const { state } = useAuth();
+  const { state, changePassword, logout } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -46,6 +57,17 @@ export function ProtectedLayout() {
       <div className="grid min-h-dvh place-items-center">
         <LoaderCircle className="size-6 animate-spin text-primary" aria-label="Loading" />
       </div>
+    );
+  }
+  // FR-SEF-01: with a temporary password the only thing to do is change it.
+  if (state.user.mustChangePassword) {
+    return (
+      <ChangePasswordForm
+        variant="screen"
+        onSubmit={changePassword}
+        errorText={(error) => t(errorKey(error))}
+        onLogout={() => void logout()}
+      />
     );
   }
   return <AppShell />;
@@ -205,6 +227,7 @@ function UserMenu() {
   const { t } = useTranslation();
   const user = useUser();
   const { logout } = useAuth();
+  const navigate = useNavigate();
   return (
     <Menu
       label={user.fullName}
@@ -226,6 +249,12 @@ function UserMenu() {
             <p className="text-sm font-semibold text-ink">{user.fullName}</p>
             <p className="text-xs text-muted">{user.email}</p>
           </div>
+          <MenuItem
+            icon={<UserCog className="size-4" />}
+            onSelect={() => void navigate({ to: '/account' })}
+          >
+            {t('nav.account')}
+          </MenuItem>
           <MenuItem
             tone="danger"
             icon={<LogOut className="size-4" />}

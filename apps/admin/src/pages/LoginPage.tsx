@@ -9,11 +9,12 @@ import {
   Lock,
   Mail,
   ScanLine,
+  ShieldCheck,
 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Brand, Button, Field, Input, LanguageSwitch, ThemeToggle } from '@qafe/ui';
-import { errorKey } from '../lib/api';
+import { ApiError, errorKey } from '../lib/api';
 import { useAuth } from '../lib/useAuth';
 
 export function LoginPage() {
@@ -27,19 +28,28 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // FR-ADM-01: after a correct password, admins with two-factor sign-in enter their code.
+  const [needsCode, setNeedsCode] = useState(false);
+  const [code, setCode] = useState('');
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
     try {
-      await login(email.trim(), password);
+      await login(email.trim(), password, needsCode ? code : undefined);
       // Only same-app paths, never an absolute URL from the query string.
       await navigate({
         to: redirect?.startsWith('/') && !redirect.startsWith('//') ? redirect : '/',
       });
     } catch (err) {
-      setError(t(errorKey(err)));
+      if (err instanceof ApiError && err.code === 'mfa_required') {
+        setNeedsCode(true);
+        setError(null);
+      } else {
+        setError(t(errorKey(err)));
+        if (needsCode) setCode('');
+      }
       setSubmitting(false);
     }
   }
@@ -121,11 +131,30 @@ export function LoginPage() {
               )}
             </Field>
 
+            {needsCode && (
+              <Field label={t('login.code')} hint={t('login.codeHint')}>
+                {({ id, describedBy }) => (
+                  <Input
+                    id={id}
+                    aria-describedby={describedBy}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    autoFocus
+                    maxLength={6}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                    icon={<ShieldCheck className="size-4" />}
+                    className="tracking-[0.3em]"
+                  />
+                )}
+              </Field>
+            )}
+
             <Button
               type="submit"
               size="lg"
               loading={submitting}
-              disabled={!email || !password}
+              disabled={!email || !password || (needsCode && code.length !== 6)}
               className="group mt-2 w-full"
             >
               {t('login.submit')}

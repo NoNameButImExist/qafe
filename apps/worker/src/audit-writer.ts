@@ -144,6 +144,9 @@ export function toAuditRow(event: OutboxEvent): AuditRow {
     case 'user.blocked':
     case 'user.unblocked':
     case 'user.password_reset':
+    case 'user.password_changed':
+    case 'user.mfa_enabled':
+    case 'user.mfa_disabled':
       return {
         ...base,
         ...actor,

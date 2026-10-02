@@ -128,14 +128,19 @@ export class AdminUsersService {
   }
 
   /** Sets a temporary password; the user must change it at the next sign-in. */
-  async resetPassword(userId: string, temporaryPassword: string, actorId: string): Promise<void> {
+  async resetPassword(
+    userId: string,
+    temporaryPassword: string,
+    actorId: string,
+    requirePasswordChange = true,
+  ): Promise<void> {
     if (userId === actorId) throw cannotModifySelf();
     const passwordHash = await hashPassword(temporaryPassword);
     await this.db.withTenant(SUPER_ADMIN, async (trx) => {
       const user = await this.target(trx, userId);
       await trx
         .updateTable('core.users')
-        .set({ password_hash: passwordHash, must_change_password: true })
+        .set({ password_hash: passwordHash, must_change_password: requirePasswordChange })
         .where('id', '=', userId)
         .execute();
       await revokeSessions(trx, userId);

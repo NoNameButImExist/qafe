@@ -28,11 +28,12 @@ export function ResetPasswordSheet({
 }) {
   const { t } = useTranslation();
   const [password, setPassword] = useState(generatePassword);
+  const [requireChange, setRequireChange] = useState(true);
   const reset = useMutation({
     mutationFn: (u: ResetTarget) =>
       api<void>(`/admin/users/${u.id}/password`, {
         method: 'POST',
-        body: { temporaryPassword: password },
+        body: { temporaryPassword: password, requirePasswordChange: requireChange },
       }),
     onSuccess: () => onDone?.(),
   });
@@ -133,6 +134,18 @@ export function ResetPasswordSheet({
               />
             )}
           </Field>
+          <label className="flex items-start gap-2.5 text-sm text-ink">
+            <input
+              type="checkbox"
+              className="mt-0.5 size-4 accent-[var(--primary)]"
+              checked={requireChange}
+              onChange={(e) => setRequireChange(e.target.checked)}
+            />
+            <span>
+              <span className="font-semibold">{t('users.requireChange')}</span>
+              <span className="block text-xs text-muted">{t('users.requireChangeHint')}</span>
+            </span>
+          </label>
         </div>
       )}
     </Sheet>

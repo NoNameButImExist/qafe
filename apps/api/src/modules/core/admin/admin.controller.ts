@@ -16,6 +16,7 @@ import {
   AdminUserListQuery,
   CreateVenueRequest,
   ResetPasswordRequest,
+  type ResetPasswordInput,
   UpdateUserStatusRequest,
   UpdateVenueRequest,
   UpdateVenueStatusRequest,
@@ -141,9 +142,14 @@ export class AdminController {
   @HttpCode(204)
   async resetPassword(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Body(new ZodPipe(ResetPasswordRequest)) body: ResetPasswordRequest,
+    @Body(new ZodPipe(ResetPasswordRequest)) body: ResetPasswordInput,
     @CurrentUser() user: AccessClaims,
   ): Promise<void> {
-    await this.users.resetPassword(id, body.temporaryPassword, user.userId);
+    await this.users.resetPassword(
+      id,
+      body.temporaryPassword,
+      user.userId,
+      body.requirePasswordChange,
+    );
   }
 }

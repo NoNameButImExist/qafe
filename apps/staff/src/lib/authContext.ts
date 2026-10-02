@@ -8,6 +8,8 @@ export interface AuthContextValue {
   state: AuthState;
   login: (venueSlug: string, username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** Own password (FR-SEF-01); the session is refreshed so the token drops the flag. */
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

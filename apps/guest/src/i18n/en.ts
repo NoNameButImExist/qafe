@@ -148,6 +148,7 @@ const en: Messages = {
     pendingOthers_other: '{{count}} new devices want to order at this table.',
     review: 'Review',
     unverifiedWaiter: 'The waiter confirms the first order at the table.',
+    havePin: 'Did the waiter give you a PIN? Enter it here.',
     pinTitle: 'Enter the table PIN',
     pinBody: 'The waiter will tell you the four-digit PIN.',
     pinLabel: 'PIN',

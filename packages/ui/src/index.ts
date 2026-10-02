@@ -3,6 +3,7 @@ export { Brand } from './Brand';
 export { Button } from './Button';
 export { Card, SectionTitle } from './Card';
 export { cn } from './cn';
+export { ChangePasswordForm } from './ChangePasswordForm';
 export { ConfirmDialog } from './ConfirmDialog';
 export { CopyRow } from './CopyRow';
 export { Field, Input, Select, Textarea } from './Field';

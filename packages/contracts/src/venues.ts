@@ -54,6 +54,8 @@ export const CreateVenueRequest = z.object({
     username: z.string().regex(/^[a-zA-Z0-9._-]{3,30}$/, 'username'),
     /** Temporary password; the owner must change it at first login (FR-SEF-01). */
     temporaryPassword: z.string().min(10).max(200),
+    /** The owner changes it at the first sign-in (FR-SEF-01); on by default. */
+    requirePasswordChange: z.boolean().default(true),
   }),
 });
 export type CreateVenueRequest = z.input<typeof CreateVenueRequest>;

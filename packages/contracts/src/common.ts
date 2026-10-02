@@ -46,6 +46,8 @@ export const ErrorCode = {
   cooldown: 'cooldown',
   paymentMethodUnavailable: 'payment_method_unavailable',
   hostOnly: 'host_only',
+  passwordChangeRequired: 'password_change_required',
+  mfaUnavailable: 'mfa_unavailable',
   // Staff ordering and billing (FR-KON)
   openOrders: 'open_orders',
   billChanged: 'bill_changed',

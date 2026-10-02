@@ -1,6 +1,7 @@
 import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import {
   generateRefreshToken,
+  hashPassword,
   hashRefreshToken,
   TokenSigner,
   verifyAgainstDummy,
@@ -22,6 +23,7 @@ import { APP_CONFIG, type AppConfig } from '../../../config/config.js';
 import { CoreDatabase } from '../core.database.js';
 import { publish, userLabel } from '../outbox.js';
 import { LoginThrottle } from './login-throttle.js';
+import { MfaService } from './mfa.service.js';
 
 export const TOKEN_SIGNER = Symbol('TOKEN_SIGNER');
 
@@ -51,6 +53,7 @@ interface UserRow {
   platform_role: 'super_admin' | 'support' | 'none';
   preferred_language: string;
   must_change_password: boolean;
+  mfa_enabled: boolean;
   is_active: boolean;
 }
 
@@ -65,6 +68,7 @@ interface MemberRow {
   role_id: string;
   role: string;
   is_owner: boolean;
+  must_change_password: boolean;
 }
 
 interface ResolvedVenue {
@@ -86,6 +90,7 @@ export class AuthService {
   constructor(
     private readonly db: CoreDatabase,
     private readonly throttle: LoginThrottle,
+    private readonly mfa: MfaService,
     @Inject(TOKEN_SIGNER) private readonly signer: TokenSigner,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
@@ -95,9 +100,10 @@ export class AuthService {
     email: string,
     password: string,
     client: ClientInfo,
+    totp?: string,
   ): Promise<IssuedSession<AuthSession>> {
     const account = email.toLowerCase();
-    this.throttle.assertAllowed(client.ip, account);
+    await this.throttle.assertAllowed(client.ip, account);
 
     const user = await this.db.withTenant(PLATFORM, (trx) =>
       this.userQuery(trx)
@@ -111,19 +117,27 @@ export class AuthService {
       : await verifyAgainstDummy(password);
 
     if (!user || !passwordOk || user.platform_role === 'none') {
-      this.throttle.recordFailure(client.ip, account);
+      await this.throttle.recordFailure(client.ip, account);
       throw invalidCredentials();
     }
     if (!user.is_active) throw accountDisabled();
-    // FR-ADM-01 TOTP is not built yet. When it is required, refuse rather than skip it.
-    if (this.config.auth.adminMfaRequired) {
+    // FR-ADM-01: the admin's own choice, or the platform rule ADMIN_MFA_REQUIRED.
+    if (user.mfa_enabled) {
+      if (!totp) {
+        throw new ApiException(HttpStatus.UNAUTHORIZED, ErrorCode.mfaRequired, 'Enter the code');
+      }
+      if (!(await this.mfa.verify(user.id, totp))) {
+        await this.throttle.recordFailure(client.ip, account);
+        throw new ApiException(HttpStatus.UNAUTHORIZED, ErrorCode.invalidCode, 'Wrong code');
+      }
+    } else if (this.config.auth.adminMfaRequired) {
       throw new ApiException(
         HttpStatus.FORBIDDEN,
         ErrorCode.mfaRequired,
-        'Two-factor authentication is required but not available yet',
+        'Two-factor sign-in is required on this platform; ask another admin to help set it up',
       );
     }
-    this.throttle.recordSuccess(client.ip, account);
+    await this.throttle.recordSuccess(client.ip, account);
 
     return this.db.withTenant(PLATFORM, async (trx) => {
       const issued = await this.startPlatformSession(trx, user, client);
@@ -146,7 +160,7 @@ export class AuthService {
   /**
    * Venue staff login (FR-SEF-01, FR-KON-01): venue slug + username + password.
    * The venue is found through core.resolve_venue, since RLS hides it until venue_id is known.
-   * The temporary password works like a normal one for now (forced change is postponed).
+   * With a temporary password the token allows only changing it (FR-SEF-01).
    */
   async staffLogin(
     venueSlug: string,
@@ -155,7 +169,7 @@ export class AuthService {
     client: ClientInfo,
   ): Promise<IssuedSession<StaffSession>> {
     const account = `${venueSlug}/${username.toLowerCase()}`;
-    this.throttle.assertAllowed(client.ip, account);
+    await this.throttle.assertAllowed(client.ip, account);
 
     const venue = await this.db.withTenant(PLATFORM, async (trx) => {
       const { rows } = await sql<ResolvedVenue>`
@@ -174,12 +188,12 @@ export class AuthService {
       : await verifyAgainstDummy(password);
 
     if (!venue || !member || !passwordOk) {
-      this.throttle.recordFailure(client.ip, account);
+      await this.throttle.recordFailure(client.ip, account);
       throw invalidCredentials();
     }
     if (!member.member_active || !member.user_active) throw accountDisabled();
     if (venue.status === 'closed') throw venueClosed();
-    this.throttle.recordSuccess(client.ip, account);
+    await this.throttle.recordSuccess(client.ip, account);
 
     return this.db.withTenant(venueContext(venue.venue_id), async (trx) => {
       const issued = await this.startStaffSession(trx, venue.venue_id, member, client);
@@ -297,6 +311,47 @@ export class AuthService {
     );
   }
 
+  /**
+   * Changes one's own password (FR-SEF-01). Other sessions of the user end; the caller
+   * refreshes to get a token without the temporary-password flag.
+   */
+  async changePassword(
+    claims: PlatformClaims | StaffClaims,
+    currentPassword: string,
+    newPassword: string,
+    client: ClientInfo,
+  ): Promise<void> {
+    const account = `password:${claims.userId}`;
+    await this.throttle.assertAllowed(client.ip, account);
+    if (!(await verifyPassword(await this.passwordHash(claims.userId), currentPassword))) {
+      await this.throttle.recordFailure(client.ip, account);
+      throw invalidCredentials();
+    }
+    await this.throttle.recordSuccess(client.ip, account);
+    const passwordHash = await hashPassword(newPassword);
+    const context = claims.kind === 'staff' ? venueContext(claims.venueId) : PLATFORM;
+    await this.db.withTenant(context, async (trx) => {
+      await trx
+        .updateTable('core.users')
+        .set({ password_hash: passwordHash, must_change_password: false })
+        .where('id', '=', claims.userId)
+        .execute();
+      await trx
+        .updateTable('core.auth_sessions')
+        .set({ revoked_at: new Date() })
+        .where('user_id', '=', claims.userId)
+        .where('id', '!=', claims.sessionId)
+        .where('revoked_at', 'is', null)
+        .execute();
+      await publish(trx, {
+        type: 'user.password_changed',
+        userId: claims.userId,
+        userLabel: claims.name,
+        actor: { id: claims.userId, label: claims.name },
+      });
+    });
+  }
+
   async me(claims: PlatformClaims): Promise<Me> {
     const user = await this.db.withTenant(PLATFORM, (trx) =>
       this.userQuery(trx)
@@ -328,6 +383,7 @@ export class AuthService {
         'platform_role',
         'preferred_language',
         'must_change_password',
+        'mfa_enabled',
         'is_active',
       ]);
   }
@@ -349,6 +405,7 @@ export class AuthService {
         'r.id as role_id',
         'r.name as role',
         'r.is_owner',
+        'u.must_change_password',
       ])
       .where('u.deleted_at', 'is', null);
   }
@@ -413,6 +470,7 @@ export class AuthService {
         sessionId: id,
         name: userLabel(user.full_name, user.email),
         role,
+        mustChangePassword: user.must_change_password,
       },
       ttl,
     );
@@ -444,6 +502,7 @@ export class AuthService {
         venueId,
         memberId: member.member_id,
         permissions: me.permissions,
+        mustChangePassword: member.must_change_password,
       },
       ttl,
     );
@@ -486,6 +545,7 @@ export class AuthService {
       },
       modules: modules.map((m) => m.module_code),
       preferredLanguage: member.preferred_language,
+      mustChangePassword: member.must_change_password,
     };
   }
 
@@ -513,5 +573,6 @@ function toMe(user: UserRow): Me {
     role: user.platform_role,
     preferredLanguage: user.preferred_language,
     mustChangePassword: user.must_change_password,
+    mfaEnabled: user.mfa_enabled,
   };
 }

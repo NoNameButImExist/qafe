@@ -34,7 +34,7 @@ Administrator upravlja lokalima i korisnicima na nivou cijele platforme. Ne radi
 
 | ID | Područje | Zahtjev | Prioritet |
 | --- | --- | --- | --- |
-| FR-ADM-01 | Prijava | Prijava emailom i lozinkom, uz obaveznu dvofaktorsku autentifikaciju (TOTP). TOTP je odgođen (vidi Odgođene stavke). | MVP |
+| FR-ADM-01 | Prijava | Prijava emailom i lozinkom, uz dvofaktorsku autentifikaciju (TOTP) koju admin uključuje u svom nalogu; platforma je može učiniti obaveznom (`ADMIN_MFA_REQUIRED`). | MVP |
 | FR-ADM-02 | Lokali | Kreiranje lokala: naziv, slug (subdomen), JIB, PDV broj, adresa, kontakt, valuta i vremenska zona. | MVP |
 | FR-ADM-03 | Lokali | Pri kreiranju lokala sistem automatski kreira uloge Šef i Konobar. Administrator kreira nalog šefa sa privremenom lozinkom, bez slanja emaila. | MVP |
 | FR-ADM-04 | Lokali | Izmjena podataka lokala i promjena statusa: na čekanju, aktivan, suspendovan, zatvoren. Suspendovan lokal ne prima narudžbe. | MVP |
@@ -69,7 +69,7 @@ Administrator vidi stanje svakog servisa na jednom ekranu. Podaci se prikupljaju
 
 | ID | Područje | Zahtjev | Prioritet |
 | --- | --- | --- | --- |
-| FR-SEF-01 | Prijava | Prijava korisničkim imenom i privremenom lozinkom koju dodijeli administrator. Promjena lozinke je obavezna pri prvoj prijavi. Obavezna promjena je odgođena (vidi Odgođene stavke). | MVP |
+| FR-SEF-01 | Prijava | Prijava korisničkim imenom i privremenom lozinkom koju dodijeli administrator. Promjena lozinke je obavezna pri prvoj prijavi, osim ako onaj ko postavlja lozinku to isključi. | MVP |
 | FR-SEF-02 | Profil lokala | Uređivanje naziva, loga, boje, kontakta i radnog vremena. | MVP |
 | FR-SEF-03 | Postavke | Uključivanje i isključivanje naručivanja gostiju i potvrde prve narudžbe. | MVP |
 | FR-SEF-04 | Postavke | Dozvola odbijanja narudžbe. Po defaultu isključeno: konobar tada narudžbu može samo izmijeniti ili vratiti gostu. | MVP |
@@ -225,6 +225,4 @@ Zahtjevi iz MVP-a koji su svjesno pomjereni za kasnije. Prije puštanja u produk
 
 | Zahtjev | Šta je odgođeno | Trenutno stanje | Odluka |
 | --- | --- | --- | --- |
-| FR-ADM-01 | Dvofaktorska prijava (TOTP) za administratore | Prijava samo emailom i lozinkom. Kolone `mfa_enabled` i `mfa_secret_enc` postoje. Postavka `ADMIN_MFA_REQUIRED=true` odbija prijavu dok TOTP ne bude urađen. | 30. 9. 2026. |
-| FR-SEF-01, FR-ADM-03, FR-ADM-09 | Obavezna promjena privremene lozinke pri prvoj prijavi osoblja | Privremena lozinka radi kao obična. Oznaka `must_change_password` se i dalje postavlja pri kreiranju naloga i resetu, pa se obaveza može uključiti bez migracije. | 30. 9. 2026. |
 | FR-KON-01 | Prijava PIN-om na zajedničkom uređaju lokala | Konobar se prijavljuje korisničkim imenom i lozinkom na svom telefonu. PIN po članu osoblja se već postavlja u panelu (`pin_hash`), pa se prijava PIN-om dodaje uz povezivanje uređaja s lokalom. | 1. 10. 2026. |

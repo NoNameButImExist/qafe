@@ -2,7 +2,7 @@ import type { StaffServerEvents } from '@qafe/contracts';
 import type { QueryClient } from '@tanstack/react-query';
 import { io, type Socket } from 'socket.io-client';
 import { currentToken } from './api';
-import { beep } from './sound';
+import { beep, vibrate } from './sound';
 
 /** Changes a guest made that need a waiter: they ring (FR-KON-04, 18). */
 const ALERTS = new Set([
@@ -34,7 +34,10 @@ export function connectRealtime(queryClient: QueryClient): void {
   };
   socket.on('venue.changed', ({ reason }) => {
     refresh();
-    if (ALERTS.has(reason)) beep();
+    if (ALERTS.has(reason)) {
+      beep();
+      vibrate();
+    }
   });
   socket.on('connect', refresh);
   // The server drops a socket whose token expired: reconnect with the current one.

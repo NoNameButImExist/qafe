@@ -48,21 +48,34 @@ Tenant, auth and data rules:
   Built so far: admin login (`POST /auth/admin/login`), `POST /auth/refresh` (rotation; an old token
   reused after 30 s revokes all sessions of that user), `POST /auth/logout`, `GET /auth/me`,
   `GET /.well-known/jwks.json`. Access token in memory on the client, refresh token in an httpOnly,
-  `SameSite=Strict` cookie (`qafe_rt`, path `AUTH_COOKIE_PATH`). Login is throttled in memory
-  (5 failures per account+IP, 20 per IP, 15 min); still in memory, to move to Redis.
+  `SameSite=Strict` cookie (`qafe_rt`, path `AUTH_COOKIE_PATH`). Login is throttled in Redis
+  (`LoginThrottle`: 5 failures per account+IP, 20 per IP, 15 min; fails open if Redis is down).
 - **Staff sign-in**: `POST /auth/staff/login` (venue slug + username + password), `/auth/staff/refresh`,
   `/auth/staff/logout`, `/auth/staff/me`. Its refresh cookie is `qafe_srt` (admin: `qafe_rt`), and a
   staff session row carries `venue_id`/`member_id`, so refreshing runs in that venue's RLS context.
   Staff tokens carry the role's permission codes; `StaffGuard` + `@RequirePermission('menu.edit')`.
   Access tokens also carry `name` (the actor label for audit entries).
-- **Postponed** (see "Odgođene stavke" in `docs/requirements.md`): forced password change at first
-  staff sign-in (the `must_change_password` flag is still set), and
-- **TOTP (FR-ADM-01) is postponed.** `ADMIN_MFA_REQUIRED=true` makes admin login fail closed
-  (`mfa_required`) until the TOTP flow exists. The seed admin password is for development only
-  and must change before production.
+- **Two-factor sign-in (FR-ADM-01)**: each admin turns TOTP on or off in "Moj nalog"
+  (`/auth/mfa`, `/setup`, `/enable`, `/disable`; RFC 6238 in `@qafe/auth`, no library). Secrets
+  are AES-256-GCM encrypted with `MFA_ENCRYPTION_KEY`; a code works once (Redis
+  `qafe:core:totp-used:*`). Login answers 401 `mfa_required` until `totp` is sent.
+  `ADMIN_MFA_REQUIRED=true` refuses admins who have not turned it on.
+- **Temporary passwords (FR-SEF-01)**: `must_change_password` travels in the access token
+  (`pwc`); `AuthGuard` answers 403 `password_change_required` except on routes marked
+  `@AllowTemporaryPassword()` (me, `POST /auth/password`). Whoever sets someone else's password
+  (admin: new venue owner, reset; owner: new staff, new password) chooses with
+  `requirePasswordChange` (default on). Admin, panel and staff show `ChangePasswordForm`
+  (`@qafe/ui`, i18n keys `password.*`) until it is changed. Postponed: PIN sign-in on a shared
+  device (see "Odgođene stavke"). The seed admin password is for development only.
 - **Idempotency**: `ordering.orders.idempotency_key` + `UNIQUE (venue_id, idempotency_key)`; on conflict
   return the existing order (200). Redis is only a cache in front of it.
 - Redis is never a source of truth. Keys are prefixed `qafe:<module>:...`.
+- **Closed by default**: the global guard `RequireSignIn` (APP_GUARD) demands a valid access token
+  on every HTTP route; only routes marked `@Public()` are open (health, sign-in/refresh/logout,
+  JWKS, `GET /venues/:slug/public`, `/guest/*`). `route-protection.integration.test.ts` walks
+  every registered route (`registeredRoutes(app)` from `bootstrap.ts`) and fails if one outside
+  its public list answers anything but 401 without a token. Controllers still add StaffGuard /
+  PlatformAdminGuard for roles and permissions.
 - **Database access**: modules get a `TenantDatabase` (`@qafe/db`) logged in as their own role; the only
   query entry point is `withTenant({ venueId, isSuperAdmin }, trx => ...)`. Platform admins use
   `{ venueId: null, isSuperAdmin: true }`. Generated Kysely types (`packages/db/src/generated/db.ts`) are
@@ -187,6 +200,11 @@ is for typechecking only. Apps depend on them with `workspace:*`.
   `OrderingSettings.openNow` is computed in the venue's timezone; outside the hours guests get
   `closedReason: 'outside_hours'` and orders fail with `ordering_closed`. Staff orders are not limited.
 - `GET /staff/orders/day?date=` (FR-SEF-23): every order of a business day (today's by default).
+- Table PIN (FR-GOS-21): staff always see the session's PIN on the table page and may set a chosen
+  one or a new random one (`POST /staff/sessions/:id/pin`, `sessions.verify`; resets the guests'
+  failed tries). Guests can confirm the table with it in both modes (in waiter mode via "Imam PIN").
+- The guest device cookie lasts a year, so the host who closes the browser and scans again is back
+  in the same session as host; other devices still wait for approval.
 - Realtime: Socket.IO gateway in `ordering` with the Redis adapter (`common/redis/redis-io.adapter.ts`).
   Messages are hints (`session.changed`, `venue.changed`); clients refetch over HTTP. Guests are put
   in `session:<id>` from the handshake cookie (the app reconnects after joining a table), staff in
@@ -253,7 +271,9 @@ is for typechecking only. Apps depend on them with `workspace:*`.
   verification and PIN, requests, devices, orders with all actions, bill, payment, close), menu
   availability (`/menu`). Actions follow the member's permissions (`useCan`).
 - Realtime: the socket sends the access token on every (re)connect; `venue.changed` refetches and
-  rings for guest-caused changes. Offline mode (NFR-05) is not built yet.
+  rings and vibrates (`navigator.vibrate`, Android only) for guest-caused changes. The guest app
+  vibrates briefly when an order changes or the device is let in. Offline mode (NFR-05) is not
+  built yet.
 
 ## Docker
 

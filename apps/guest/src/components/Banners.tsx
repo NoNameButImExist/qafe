@@ -41,6 +41,7 @@ export function Banners({
   onReview: () => void;
 }) {
   const { t } = useTranslation();
+  const [showPin, setShowPin] = useState(false);
   const waiting = state.guests.filter((g) => g.status === 'pending_approval' && !g.isMe).length;
   const needsPin =
     state.session.verificationMode === 'pin' &&
@@ -82,6 +83,18 @@ export function Banners({
     items.push(
       <Banner key="waiter" tone="info" icon={<Info className="size-5" />}>
         {t('banner.unverifiedWaiter')}
+        {/* The waiter may give a PIN instead of coming to the table (FR-GOS-21). */}
+        {showPin ? (
+          <PinForm embedded />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowPin(true)}
+            className="mt-1 block min-h-11 text-[13px] font-semibold text-accent underline"
+          >
+            {t('banner.havePin')}
+          </button>
+        )}
       </Banner>,
     );
   }
@@ -89,37 +102,41 @@ export function Banners({
   return <div className="flex flex-col gap-2 px-4 pt-4">{items}</div>;
 }
 
-function PinForm() {
+function PinForm({ embedded = false }: { embedded?: boolean }) {
   const { t } = useTranslation();
   const [code, setCode] = useState('');
   const verify = useSessionAction((value: string) =>
     api<GuestSessionState>('POST', '/guest/session/verify', { code: value }),
   );
+  const form = (
+    <form
+      className="mt-2 flex gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        verify.mutate(code, { onError: () => setCode('') });
+      }}
+    >
+      <Input
+        aria-label={t('banner.pinLabel')}
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        pattern="\d{4}"
+        maxLength={4}
+        value={code}
+        onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+        className="w-28 text-center text-lg tracking-[0.4em]"
+      />
+      <Button type="submit" disabled={code.length !== 4} loading={verify.isPending}>
+        {t('banner.pinSubmit')}
+      </Button>
+    </form>
+  );
+  if (embedded) return form;
   return (
     <Banner tone="warning" icon={<KeyRound className="size-5" />}>
       <p className="font-semibold">{t('banner.pinTitle')}</p>
       <p className="text-muted">{t('banner.pinBody')}</p>
-      <form
-        className="mt-2 flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          verify.mutate(code, { onError: () => setCode('') });
-        }}
-      >
-        <Input
-          aria-label={t('banner.pinLabel')}
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          pattern="\d{4}"
-          maxLength={4}
-          value={code}
-          onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-          className="w-28 text-center text-lg tracking-[0.4em]"
-        />
-        <Button type="submit" disabled={code.length !== 4} loading={verify.isPending}>
-          {t('banner.pinSubmit')}
-        </Button>
-      </form>
+      {form}
     </Banner>
   );
 }
