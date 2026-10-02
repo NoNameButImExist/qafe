@@ -21,7 +21,9 @@ import {
   UpdateAreaRequest,
   UpdateStaffRequest,
   UpdateTableRequest,
+  type CreateStaffInput,
   type CreateTablesBulkInput,
+  type SetStaffPasswordInput,
   type VenueSpace,
   type VenueStaff,
 } from '@qafe/contracts';
@@ -129,7 +131,7 @@ export class VenueStaffController {
   @Post()
   create(
     @CurrentStaff() staff: StaffClaims,
-    @Body(new ZodPipe(CreateStaffRequest)) body: CreateStaffRequest,
+    @Body(new ZodPipe(CreateStaffRequest)) body: CreateStaffInput,
   ) {
     return this.staffService.create(staff, body);
   }
@@ -148,9 +150,14 @@ export class VenueStaffController {
   setPassword(
     @CurrentStaff() staff: StaffClaims,
     @Param('memberId', uuid) memberId: string,
-    @Body(new ZodPipe(SetStaffPasswordRequest)) body: SetStaffPasswordRequest,
+    @Body(new ZodPipe(SetStaffPasswordRequest)) body: SetStaffPasswordInput,
   ): Promise<VenueStaff> {
-    return this.staffService.setPassword(staff, memberId, body.password);
+    return this.staffService.setPassword(
+      staff,
+      memberId,
+      body.password,
+      body.requirePasswordChange,
+    );
   }
 
   @Put(':memberId/pin')

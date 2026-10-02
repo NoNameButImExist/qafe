@@ -146,6 +146,7 @@ const bs = {
     pendingOthers_other: '{{count}} novih uređaja želi naručivati za ovim stolom.',
     review: 'Pogledaj',
     unverifiedWaiter: 'Prvu narudžbu konobar potvrđuje za stolom.',
+    havePin: 'Konobar vam je dao PIN? Unesite ga ovdje.',
     pinTitle: 'Unesite PIN stola',
     pinBody: 'Konobar će vam reći četverocifreni PIN.',
     pinLabel: 'PIN',

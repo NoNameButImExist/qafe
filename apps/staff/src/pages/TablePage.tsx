@@ -124,6 +124,13 @@ function SessionView({ detail }: { detail: StaffSessionDetail }) {
     api<void>(`${base}/guests/${guestId}/remove`, { method: 'POST', body: { block } }),
   );
   const [paying, setPaying] = useState(false);
+  const [pinOpen, setPinOpen] = useState(false);
+  const [pinValue, setPinValue] = useState('');
+  const setPin = useAction(
+    (code?: string) =>
+      api<{ code: string }>(`${base}/pin`, { method: 'POST', body: code ? { code } : {} }),
+    (r) => t('table.pinSaved', { code: r.code }),
+  );
   const [closing, setClosing] = useState(false);
   const close = useAction(
     () => api<void>(`${base}/close`, { method: 'POST' }),
@@ -135,17 +142,9 @@ function SessionView({ detail }: { detail: StaffSessionDetail }) {
       {/* Verification (FR-GOS-21) */}
       {!detail.verified ? (
         <section className="rounded-2xl border border-warning/30 bg-warning/8 p-4">
-          {detail.verificationMode === 'pin' && detail.verificationCode ? (
-            <>
-              <p className="flex items-center gap-2 font-display text-xl font-bold text-ink">
-                <KeyRound className="size-5 text-warning" />{' '}
-                {t('table.pin', { code: detail.verificationCode })}
-              </p>
-              <p className="mt-1 text-sm text-muted">{t('table.pinHint')}</p>
-            </>
-          ) : (
-            <p className="text-sm text-ink">{t('table.verifyHint')}</p>
-          )}
+          <p className="text-sm text-ink">
+            {t(detail.verificationMode === 'pin' ? 'table.pinHint' : 'table.verifyHint')}
+          </p>
           {can.verify && (
             <Button
               className="mt-3"
@@ -160,6 +159,24 @@ function SessionView({ detail }: { detail: StaffSessionDetail }) {
         <p className="flex items-center gap-2 text-sm font-semibold text-success">
           <BadgeCheck className="size-4" /> {t('table.verified')}
         </p>
+      )}
+
+      {/* The table's PIN: always visible to staff, in both modes (FR-GOS-21). */}
+      {detail.verificationCode && (
+        <section className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-surface p-4">
+          <KeyRound className="size-5 text-accent" aria-hidden />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-muted">{t('table.pinLabel')}</p>
+            <p className="font-display text-2xl font-bold tracking-[0.25em] text-ink tabular-nums">
+              {detail.verificationCode}
+            </p>
+          </div>
+          {can.verify && (
+            <Button variant="secondary" onClick={() => setPinOpen(true)}>
+              {t('table.pinChange')}
+            </Button>
+          )}
+        </section>
       )}
 
       {/* Requests (FR-KON-18) */}
@@ -346,6 +363,36 @@ function SessionView({ detail }: { detail: StaffSessionDetail }) {
             onSettled: () => setClosing(false),
             onSuccess: () => void navigate({ to: '/' }),
           })
+        }
+      />
+      <ConfirmDialog
+        open={pinOpen}
+        title={t('table.pinChange')}
+        confirmLabel={t('common.save')}
+        loading={setPin.isPending}
+        onClose={() => setPinOpen(false)}
+        onConfirm={() => {
+          if (pinValue.length !== 4) return;
+          setPin.mutate(pinValue, { onSettled: () => setPinOpen(false) });
+        }}
+        body={
+          <div className="flex flex-col gap-3 text-left">
+            <p className="text-sm text-muted">{t('table.pinChangeHint')}</p>
+            <input
+              aria-label={t('table.pinLabel')}
+              inputMode="numeric"
+              maxLength={4}
+              value={pinValue}
+              onChange={(e) => setPinValue(e.target.value.replace(/\D/g, ''))}
+              className="h-14 rounded-xl border border-line bg-surface text-center font-display text-2xl tracking-[0.4em] text-ink"
+            />
+            <Button
+              variant="ghost"
+              onClick={() => setPin.mutate(undefined, { onSettled: () => setPinOpen(false) })}
+            >
+              {t('table.pinRandom')}
+            </Button>
+          </div>
         }
       />
       <PaySheet

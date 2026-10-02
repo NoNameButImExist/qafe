@@ -7,6 +7,12 @@ export type PlatformRole = z.infer<typeof PlatformRole>;
 export const AdminLoginRequest = z.object({
   email: z.email().max(254),
   password: z.string().min(1).max(200),
+  /** Code from the authenticator app, when the admin has two-factor sign-in on. */
+  totp: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, 'totp')
+    .optional(),
 });
 export type AdminLoginRequest = z.infer<typeof AdminLoginRequest>;
 
@@ -19,6 +25,8 @@ export const Me = z.object({
   role: PlatformRole,
   preferredLanguage: z.string(),
   mustChangePassword: z.boolean(),
+  /** Two-factor sign-in (TOTP) is on for this admin (FR-ADM-01). */
+  mfaEnabled: z.boolean(),
 });
 export type Me = z.infer<typeof Me>;
 
@@ -69,6 +77,8 @@ export const StaffMe = z.object({
   /** Codes of the modules enabled for the venue (FR-ADM-06). */
   modules: z.array(z.string()),
   preferredLanguage: z.string(),
+  /** Signed in with a temporary password: only changing it is allowed (FR-SEF-01). */
+  mustChangePassword: z.boolean(),
 });
 export type StaffMe = z.infer<typeof StaffMe>;
 
@@ -78,3 +88,36 @@ export const StaffSession = z.object({
   user: StaffMe,
 });
 export type StaffSession = z.infer<typeof StaffSession>;
+
+/** At least 8 characters; the platform's one password rule (argon2id stores it). */
+export const NewPassword = z.string().min(8, 'password_short').max(200);
+
+/** POST /auth/password, /auth/staff/password: change one's own password (FR-SEF-01). */
+export const ChangePasswordRequest = z
+  .object({ currentPassword: z.string().min(1).max(200), newPassword: NewPassword })
+  .refine((r) => r.currentPassword !== r.newPassword, {
+    message: 'password_same',
+    path: ['newPassword'],
+  });
+export type ChangePasswordRequest = z.infer<typeof ChangePasswordRequest>;
+
+/** GET /auth/mfa */
+export const MfaStatus = z.object({
+  enabled: z.boolean(),
+  /** The server has an encryption key, so two-factor sign-in can be turned on. */
+  available: z.boolean(),
+});
+export type MfaStatus = z.infer<typeof MfaStatus>;
+
+/** POST /auth/mfa/setup: a new secret to scan; it is saved only after a correct code. */
+export const MfaSetup = z.object({ secret: z.string(), otpauthUrl: z.string() });
+export type MfaSetup = z.infer<typeof MfaSetup>;
+
+/** POST /auth/mfa/enable, /auth/mfa/disable */
+export const MfaCodeRequest = z.object({
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, 'totp'),
+});
+export type MfaCodeRequest = z.infer<typeof MfaCodeRequest>;

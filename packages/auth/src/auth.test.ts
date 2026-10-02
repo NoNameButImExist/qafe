@@ -119,3 +119,20 @@ describe('can', () => {
     expect(can({ ...staff, permissions: [] }, 'orders.cancel')).toBe(false);
   });
 });
+
+describe('temporary password flag', () => {
+  it('travels in the token only when set', async () => {
+    const { privatePem, publicPem } = await keyPair();
+    const signer = await TokenSigner.fromPem(privatePem, publicPem, ISSUER);
+    const verifier = await TokenVerifier.fromPem(publicPem, ISSUER);
+    const claims: AccessClaims = {
+      kind: 'platform',
+      userId: '11111111-1111-4111-8111-111111111111',
+      sessionId: '22222222-2222-4222-8222-222222222222',
+      name: 'Admin',
+      role: 'super_admin',
+      mustChangePassword: true,
+    };
+    expect(await verifier.verify(await signer.sign(claims, 60))).toEqual(claims);
+  });
+});

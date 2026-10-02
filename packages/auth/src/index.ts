@@ -12,3 +12,11 @@ export {
   type PlatformRole,
   type StaffClaims,
 } from './tokens.js';
+export {
+  decryptSecret,
+  encryptSecret,
+  generateTotpSecret,
+  totpCode,
+  totpUri,
+  verifyTotp,
+} from './totp.js';

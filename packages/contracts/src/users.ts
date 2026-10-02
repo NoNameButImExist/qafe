@@ -44,5 +44,10 @@ export const UpdateUserStatusRequest = z.object({ active: z.boolean() });
 export type UpdateUserStatusRequest = z.infer<typeof UpdateUserStatusRequest>;
 
 /** POST /admin/users/:id/password — the user must change it at the next sign-in. */
-export const ResetPasswordRequest = z.object({ temporaryPassword: z.string().min(10).max(200) });
-export type ResetPasswordRequest = z.infer<typeof ResetPasswordRequest>;
+export const ResetPasswordRequest = z.object({
+  temporaryPassword: z.string().min(10).max(200),
+  /** The user changes it at the next sign-in; on by default. */
+  requirePasswordChange: z.boolean().default(true),
+});
+export type ResetPasswordRequest = z.input<typeof ResetPasswordRequest>;
+export type ResetPasswordInput = z.output<typeof ResetPasswordRequest>;

@@ -17,6 +17,10 @@ env:
   # Only packages changed since this commit (and packages depending on them) are checked.
   TURBO_SCM_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
   TURBO_SCM_HEAD: ${{ github.sha }}
+  # release-please's PR only bumps versions and changelogs of every package it releases. Checking
+  # and building all of them again is waste: the code was checked in its own PR, and the Release
+  # workflow builds and publishes the released images when this PR is merged.
+  RELEASE_PR: ${{ startsWith(github.head_ref, 'release-please--') }}
 
 jobs:
   verify:
@@ -48,6 +52,7 @@ jobs:
       - run: pnpm format:check
 
       - name: Check affected packages
+        if: env.RELEASE_PR != 'true'
         run: |
           if [[ -z "$TURBO_SCM_BASE" || "$TURBO_SCM_BASE" =~ ^0+$ ]]; then
             pnpm turbo run lint typecheck test build
@@ -57,7 +62,12 @@ jobs:
 
       - name: Affected Docker images
         id: images
-        run: node .github/scripts/image-matrix.mjs affected >> "$GITHUB_OUTPUT"
+        run: |
+          if [[ "$RELEASE_PR" == 'true' ]]; then
+            echo 'images=[]' >> "$GITHUB_OUTPUT"
+          else
+            node .github/scripts/image-matrix.mjs affected >> "$GITHUB_OUTPUT"
+          fi
 
       # What this run checked, on the run's summary page: only changed packages and the
       # packages that depend on them (a change in contracts or ui reaches every app using it).
@@ -66,7 +76,9 @@ jobs:
         run: |
           {
             echo "### Checked packages"
-            if [[ -z "$TURBO_SCM_BASE" || "$TURBO_SCM_BASE" =~ ^0+$ ]]; then
+            if [[ "$RELEASE_PR" == 'true' ]]; then
+              echo "None: release PR (versions and changelogs only)."
+            elif [[ -z "$TURBO_SCM_BASE" || "$TURBO_SCM_BASE" =~ ^0+$ ]]; then
               echo "All packages (no base commit to compare with)."
             else
               pnpm --silent turbo ls --affected --output=json \
@@ -81,6 +93,7 @@ jobs:
   integration:
     name: Integration tests (Postgres, RLS)
     # NFR-09: venue isolation is tested against a real Postgres on every PR (Testcontainers).
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

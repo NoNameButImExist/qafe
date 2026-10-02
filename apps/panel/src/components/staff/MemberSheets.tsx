@@ -112,11 +112,12 @@ export function SecretSheet({
     kind === 'password' ? generatePassword() : generatePin(),
   );
   const valid = kind === 'password' ? value.length >= 8 : Pin.safeParse(value).success;
+  const [requireChange, setRequireChange] = useState(true);
   const save = useStaffMutation(() =>
     kind === 'password'
       ? api<VenueStaff>(`/venue/staff/${member.memberId}/password`, {
           method: 'POST',
-          body: { password: value },
+          body: { password: value, requirePasswordChange: requireChange },
         })
       : api<VenueStaff>(`/venue/staff/${member.memberId}/pin`, {
           method: 'PUT',
@@ -180,6 +181,20 @@ export function SecretSheet({
             onChange={setValue}
             onGenerate={() => setValue(kind === 'password' ? generatePassword() : generatePin())}
           />
+          {kind === 'password' && (
+            <label className="flex items-start gap-2.5 text-sm text-ink">
+              <input
+                type="checkbox"
+                className="mt-0.5 size-4 accent-[var(--primary)]"
+                checked={requireChange}
+                onChange={(e) => setRequireChange(e.target.checked)}
+              />
+              <span>
+                <span className="font-semibold">{t('staff.requireChange')}</span>
+                <span className="block text-xs text-muted">{t('staff.requireChangeHint')}</span>
+              </span>
+            </label>
+          )}
         </div>
       )}
     </Sheet>

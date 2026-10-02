@@ -1,9 +1,12 @@
 import { Controller, Get, Param } from '@nestjs/common';
+import { Public } from '../../../common/auth/auth.guard.js';
 import { VenueSlug, type PublicVenue } from '@qafe/contracts';
 import { notFound } from '../../../common/errors.js';
 import { ZodPipe } from '../../../common/zod.pipe.js';
 import { VenueDirectory } from '../venue-directory.js';
 
+// Public: what a guest may see before the venue is known.
+@Public()
 @Controller('venues')
 export class PublicVenuesController {
   constructor(private readonly venues: VenueDirectory) {}

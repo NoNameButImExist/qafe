@@ -53,7 +53,7 @@ const FIELD_OF_PATH: Record<string, keyof FormState> = {
   'owner.temporaryPassword': 'ownerPassword',
 };
 
-function toRequest(form: FormState): CreateVenueRequest {
+function toRequest(form: FormState, requirePasswordChange: boolean): CreateVenueRequest {
   return {
     name: form.name,
     slug: form.slug,
@@ -72,6 +72,7 @@ function toRequest(form: FormState): CreateVenueRequest {
       fullName: form.ownerName,
       username: form.ownerUsername,
       temporaryPassword: form.ownerPassword,
+      requirePasswordChange,
     },
   };
 }
@@ -85,6 +86,7 @@ interface Props {
 export function CreateVenueSheet({ open, onClose, onCreated }: Props) {
   const { t } = useTranslation();
   const [form, setForm] = useState(emptyForm);
+  const [requireChange, setRequireChange] = useState(true);
   // Slug and username follow the name until the admin edits them.
   const [slugEdited, setSlugEdited] = useState(false);
   const [usernameEdited, setUsernameEdited] = useState(false);
@@ -132,7 +134,7 @@ export function CreateVenueSheet({ open, onClose, onCreated }: Props) {
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
-    const request = toRequest(form);
+    const request = toRequest(form, requireChange);
     const parsed = CreateVenueRequest.safeParse(request);
     if (!parsed.success) {
       const next: Partial<Record<keyof FormState, string>> = {};
@@ -404,6 +406,20 @@ export function CreateVenueSheet({ open, onClose, onCreated }: Props) {
               />
             )}
           </Field>
+          <div className="sm:col-span-2">
+            <label className="flex items-start gap-2.5 text-sm text-ink">
+              <input
+                type="checkbox"
+                className="mt-0.5 size-4 accent-[var(--primary)]"
+                checked={requireChange}
+                onChange={(e) => setRequireChange(e.target.checked)}
+              />
+              <span>
+                <span className="font-semibold">{t('users.requireChange')}</span>
+                <span className="block text-xs text-muted">{t('users.requireChangeHint')}</span>
+              </span>
+            </label>
+          </div>
         </Section>
       </form>
     </Sheet>

@@ -1,4 +1,7 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { randomInt } from 'node:crypto';
+import { redisKey, type Redis } from '@qafe/redis';
+import { REDIS } from '../../common/redis/redis.module.js';
 import {
   ErrorCode,
   type Floor,
@@ -6,6 +9,7 @@ import {
   type RemoveGuestInput,
   type ServiceRequestView,
   type StaffSessionDetail,
+  type TablePin,
 } from '@qafe/contracts';
 import type { Tx } from '@qafe/db';
 import type { StaffClaims } from '../../common/auth/auth.guard.js';
@@ -41,6 +45,7 @@ export class StaffSessionsService {
     private readonly db: OrderingDatabase,
     private readonly venues: VenueDirectory,
     private readonly realtime: RealtimeGateway,
+    @Inject(REDIS) private readonly redis: Redis,
   ) {}
 
   /** Every active table with its status; the client filters by area. */
@@ -134,7 +139,7 @@ export class StaffSessionsService {
         tableLabel: session.table_label,
         status: session.status,
         verified: session.verified_at !== null,
-        verificationCode: session.verified_at === null ? session.verification_code : null,
+        verificationCode: session.verification_code,
         verificationMode: settings.verificationMode,
         openedAt: session.opened_at.toISOString(),
         guests: guests.map((g) => ({
@@ -288,6 +293,34 @@ export class StaffSessionsService {
       });
     });
     this.realtime.sessionChanged(staff.venueId, sessionId, 'guest');
+  }
+
+  /**
+   * Sets the table's PIN for this session (FR-GOS-21): a chosen one or a new random one.
+   * Works in both verification modes; a new PIN also resets the guests' failed tries.
+   */
+  async setPin(staff: StaffClaims, sessionId: string, code?: string): Promise<TablePin> {
+    const pin = code ?? String(randomInt(0, 10_000)).padStart(4, '0');
+    await this.inVenue(staff, async (trx) => {
+      const session = await activeSession(trx, sessionId);
+      await trx
+        .updateTable('ordering.table_sessions')
+        .set({ verification_code: pin })
+        .where('id', '=', session.id)
+        .execute();
+      await publish(trx, {
+        type: 'session.pin_changed',
+        venueId: staff.venueId,
+        sessionId,
+        tableId: session.table_id,
+        tableLabel: session.table_label,
+        entityId: sessionId,
+        ...staffActor(staff.memberId, staff.name),
+      });
+    });
+    await this.redis.del(redisKey('ordering', 'pin', sessionId)).catch(() => undefined);
+    this.realtime.sessionChanged(staff.venueId, sessionId, 'pin');
+    return { code: pin };
   }
 
   /** "Vidio sam" and "Riješeno" for a waiter call or bill request (FR-KON-18). */

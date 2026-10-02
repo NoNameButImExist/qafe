@@ -110,7 +110,10 @@ export const StaffSessionDetail = z.object({
   tableLabel: z.string(),
   status: SessionStatus,
   verified: z.boolean(),
-  /** PIN to tell the guests (PIN mode, until verified). */
+  /**
+   * The table's PIN for this session. Staff tell it to the guests: required in PIN mode, and
+   * in waiter mode a way to let guests confirm the table themselves (FR-GOS-21).
+   */
   verificationCode: z.string().nullable(),
   verificationMode: z.enum(['waiter', 'pin']),
   openedAt: z.string(),
@@ -171,6 +174,19 @@ export const RemoveGuestRequest = z.object({
 });
 export type RemoveGuestRequest = z.input<typeof RemoveGuestRequest>;
 export type RemoveGuestInput = z.output<typeof RemoveGuestRequest>;
+
+/** POST /staff/sessions/:id/pin — a chosen PIN, or a new random one when omitted. */
+export const SetTablePinRequest = z.object({
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{4}$/, 'pin')
+    .optional(),
+});
+export type SetTablePinRequest = z.infer<typeof SetTablePinRequest>;
+
+export const TablePin = z.object({ code: z.string() });
+export type TablePin = z.infer<typeof TablePin>;
 
 /** "Nije naše": confirm the order belongs to the table, or cancel it (FR-GOS-25). */
 export const ResolveDisputeRequest = z.object({ action: z.enum(['confirm', 'cancel']) });

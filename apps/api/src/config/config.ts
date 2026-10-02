@@ -30,6 +30,11 @@ const Env = z.object({
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
   AUTH_COOKIE_PATH: z.string().startsWith('/').default('/auth'),
   ADMIN_MFA_REQUIRED: z.stringbool().default(false),
+  /** 32 bytes, base64: encrypts admins' TOTP secrets. Empty = two-factor sign-in unavailable. */
+  MFA_ENCRYPTION_KEY: z
+    .string()
+    .optional()
+    .refine((v) => !v || Buffer.from(v, 'base64').length === 32, 'must be 32 bytes, base64'),
   /** Secure cookies; defaults to off only in development. Set false for the local Docker stack over http. */
   COOKIE_SECURE: z.stringbool().optional(),
 
@@ -92,6 +97,7 @@ export interface AppConfig {
     /** Secure cookies everywhere except local development over http. */
     cookieSecure: boolean;
     adminMfaRequired: boolean;
+    mfaEncryptionKey: string | null;
   };
   corsOrigins: string[];
   guestUrlTemplate: string;
@@ -153,6 +159,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
       cookiePath: env.AUTH_COOKIE_PATH,
       cookieSecure: env.COOKIE_SECURE ?? env.NODE_ENV !== 'development',
       adminMfaRequired: env.ADMIN_MFA_REQUIRED,
+      mfaEncryptionKey: env.MFA_ENCRYPTION_KEY || null,
     },
     guestUrlTemplate: env.GUEST_URL_TEMPLATE,
     guest: {

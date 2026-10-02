@@ -57,7 +57,14 @@ export const UserLoggedInEvent = z.object({
 export type UserLoggedInEvent = z.infer<typeof UserLoggedInEvent>;
 
 export const UserAdminEvent = z.object({
-  type: z.enum(['user.blocked', 'user.unblocked', 'user.password_reset']),
+  type: z.enum([
+    'user.blocked',
+    'user.unblocked',
+    'user.password_reset',
+    'user.password_changed',
+    'user.mfa_enabled',
+    'user.mfa_disabled',
+  ]),
   userId: z.uuid(),
   userLabel: z.string(),
   actor: Actor,
@@ -143,6 +150,7 @@ export const OrderingEvent = z.object({
     'session.opened',
     'session.verified',
     'session.bill_requested',
+    'session.pin_changed',
     'guest.joined',
     'guest.approved',
     'guest.left',

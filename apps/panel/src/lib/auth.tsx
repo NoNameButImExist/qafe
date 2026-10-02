@@ -35,6 +35,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [queryClient]);
 
-  const value = useMemo(() => ({ state, login, logout }), [state, login, logout]);
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    await api<void>('/auth/password', { method: 'POST', body: { currentPassword, newPassword } });
+    const refreshed = await refreshSession();
+    if (refreshed) setState({ status: 'authenticated', user: refreshed.user });
+  }, []);
+
+  const value = useMemo(
+    () => ({ state, login, logout, changePassword }),
+    [state, login, logout, changePassword],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

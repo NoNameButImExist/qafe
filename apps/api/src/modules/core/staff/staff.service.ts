@@ -2,7 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { hashPassword, type StaffClaims } from '@qafe/auth';
 import {
   ErrorCode,
-  type CreateStaffRequest,
+  type CreateStaffInput,
   type StaffEvent,
   type UpdateStaffRequest,
   type VenueStaff,
@@ -52,7 +52,7 @@ export class StaffService {
   }
 
   /** Accounts have no email (FR-SEF-08): sign-in is venue slug + username, or a PIN. */
-  async create(staff: StaffClaims, input: CreateStaffRequest): Promise<VenueStaff> {
+  async create(staff: StaffClaims, input: CreateStaffInput): Promise<VenueStaff> {
     // Without a password the account signs in with the PIN only; store an unusable random hash.
     const passwordHash = await hashPassword(
       input.password ?? randomBytes(32).toString('base64url'),
@@ -74,7 +74,7 @@ export class StaffService {
         .values({
           password_hash: passwordHash,
           full_name: input.fullName,
-          must_change_password: true,
+          must_change_password: input.requirePasswordChange,
         })
         .returning('id')
         .executeTakeFirstOrThrow();
@@ -172,14 +172,23 @@ export class StaffService {
   }
 
   /** Sets a new password; the member's other sessions end (FR-SEF-09). */
-  async setPassword(staff: StaffClaims, memberId: string, password: string): Promise<VenueStaff> {
+  async setPassword(
+    staff: StaffClaims,
+    memberId: string,
+    password: string,
+    requirePasswordChange = true,
+  ): Promise<VenueStaff> {
     const passwordHash = await hashPassword(password);
     return this.inVenue(staff.venueId, async (trx) => {
       const member = await this.member(trx, memberId);
       if (member.is_owner && memberId !== staff.memberId) await this.requireOwner(trx, staff);
       await trx
         .updateTable('core.users')
-        .set({ password_hash: passwordHash, must_change_password: memberId !== staff.memberId })
+        .set({
+          password_hash: passwordHash,
+          // One's own new password is final; someone else's is temporary unless told otherwise.
+          must_change_password: memberId !== staff.memberId && requirePasswordChange,
+        })
         .where('id', '=', member.user_id)
         .execute();
       await revokeMemberSessions(trx, memberId, staff.sessionId);

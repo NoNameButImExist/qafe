@@ -164,7 +164,7 @@ export class AdminVenuesService {
         .values({
           password_hash: passwordHash,
           full_name: input.owner.fullName,
-          must_change_password: true,
+          must_change_password: input.owner.requirePasswordChange,
           preferred_language: input.defaultLanguage,
         })
         .returning('id')

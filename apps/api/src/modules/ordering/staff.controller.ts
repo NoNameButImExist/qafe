@@ -23,6 +23,7 @@ import {
   RemoveItemRequest,
   ReplaceItemRequest,
   ResolveDisputeRequest,
+  SetTablePinRequest,
   StaffMessageRequest,
   type AddItemsInput,
   type DayOrderList,
@@ -34,6 +35,7 @@ import {
   type StaffOrder,
   type StaffOrderList,
   type StaffSessionDetail,
+  type TablePin,
 } from '@qafe/contracts';
 import {
   CurrentStaff,
@@ -80,6 +82,17 @@ export class StaffController {
   @RequirePermission('sessions.verify')
   verify(@CurrentStaff() staff: StaffClaims, @Param('id', uuid) id: string): Promise<void> {
     return this.sessions.verify(staff, id);
+  }
+
+  @Post('sessions/:id/pin')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermission('sessions.verify')
+  setPin(
+    @CurrentStaff() staff: StaffClaims,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(SetTablePinRequest)) body: SetTablePinRequest,
+  ): Promise<TablePin> {
+    return this.sessions.setPin(staff, id, body.code);
   }
 
   @Post('sessions/:id/guests/:guestId/approve')

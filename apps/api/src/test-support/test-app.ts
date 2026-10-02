@@ -54,6 +54,7 @@ export async function testConfig(
       cookiePath: '/auth',
       cookieSecure: true,
       adminMfaRequired: false,
+      mfaEncryptionKey: Buffer.alloc(32, 7).toString('base64'),
     },
     corsOrigins: [],
     guestUrlTemplate: 'https://{slug}.qafe.test/t/{token}',
@@ -104,7 +105,7 @@ export async function createVenue(
   await admin.query('SELECT core.init_venue($1)', [venueId]);
   for (const m of members) {
     const user = await admin.query<{ id: string }>(
-      `INSERT INTO core.users (password_hash, full_name) VALUES ($1, $2) RETURNING id`,
+      `INSERT INTO core.users (password_hash, full_name, must_change_password) VALUES ($1, $2, false) RETURNING id`,
       [await hashPassword(m.password), m.fullName ?? m.username],
     );
     await admin.query(

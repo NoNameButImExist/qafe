@@ -7,6 +7,7 @@ import { AdminController } from './admin/admin.controller.js';
 import { AuthController } from './auth/auth.controller.js';
 import { AuthService, TOKEN_SIGNER } from './auth/auth.service.js';
 import { LoginThrottle } from './auth/login-throttle.js';
+import { MfaService } from './auth/mfa.service.js';
 import { CoreDatabase } from './core.database.js';
 import { CoreHealth } from './core.health.js';
 import { PublicVenuesController } from './venues/public-venues.controller.js';
@@ -34,6 +35,7 @@ import { VenueSettingsService } from './venue/venue-settings.service.js';
     CoreDatabase,
     CoreHealth,
     LoginThrottle,
+    MfaService,
     AuthService,
     AdminVenuesService,
     AdminUsersService,

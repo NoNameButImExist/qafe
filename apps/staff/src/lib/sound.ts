@@ -80,3 +80,15 @@ export function beep(): void {
     osc.stop(now + offset + 0.17);
   }
 }
+
+/**
+ * Vibration with the alert, where the phone allows it (Android browsers; iOS Safari does
+ * not support it). Browsers allow it only after the user has touched the page once.
+ */
+export function vibrate(pattern: number[] = [200, 100, 200]): void {
+  try {
+    navigator.vibrate?.(pattern);
+  } catch {
+    // Not supported: the sound and the screen still alert.
+  }
+}

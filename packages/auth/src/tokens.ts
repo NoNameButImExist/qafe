@@ -25,6 +25,8 @@ export interface PlatformClaims {
   /** Display label for audit entries ("Full Name (email)"). */
   name: string;
   role: PlatformRole;
+  /** Temporary password: only changing it is allowed until then (FR-SEF-01). */
+  mustChangePassword?: boolean;
 }
 
 /** Venue staff (panel, staff app). Tenant comes from here on api.qafe.ba. */
@@ -37,6 +39,8 @@ export interface StaffClaims {
   venueId: string;
   memberId: string;
   permissions: string[];
+  /** Temporary password: only changing it is allowed until then (FR-SEF-01). */
+  mustChangePassword?: boolean;
 }
 
 export type AccessClaims = PlatformClaims | StaffClaims;
@@ -49,6 +53,7 @@ interface Payload {
   vid?: string;
   mid?: string;
   prm?: string[];
+  pwc?: boolean;
 }
 
 export class TokenSigner {
@@ -76,6 +81,7 @@ export class TokenSigner {
             mid: claims.memberId,
             prm: claims.permissions,
           };
+    if (claims.mustChangePassword) payload.pwc = true;
     return new SignJWT({ ...payload })
       .setProtectedHeader({ alg: ALG, kid: this.kid, typ: 'at+jwt' })
       .setSubject(claims.userId)
@@ -115,7 +121,14 @@ export class TokenVerifier {
       payload.knd === 'platform' &&
       (payload.rol === 'super_admin' || payload.rol === 'support')
     ) {
-      return { kind: 'platform', userId, sessionId: payload.sid, name, role: payload.rol };
+      return {
+        kind: 'platform',
+        userId,
+        sessionId: payload.sid,
+        name,
+        role: payload.rol,
+        ...(payload.pwc ? { mustChangePassword: true } : {}),
+      };
     }
     if (payload.knd === 'staff' && payload.vid && payload.mid && Array.isArray(payload.prm)) {
       return {
@@ -126,6 +139,7 @@ export class TokenVerifier {
         venueId: payload.vid,
         memberId: payload.mid,
         permissions: payload.prm,
+        ...(payload.pwc ? { mustChangePassword: true } : {}),
       };
     }
     throw new Error('Invalid token claims');

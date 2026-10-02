@@ -403,3 +403,65 @@ describe('web push subscriptions (FR-KON-05)', () => {
     expect((await t.admin.query(`SELECT 1 FROM ordering.push_subscriptions`)).rowCount).toBe(0);
   });
 });
+
+describe('table PIN set by staff (FR-GOS-21)', () => {
+  it('shows the PIN, lets staff change it, and guests confirm the table with it in waiter mode too', async () => {
+    const guest = new Device(t, 'konobar-kafa');
+    const state = (await guest.join(f.tables.T3!)).json<GuestSessionState>();
+    expect(state.session).toMatchObject({ verified: false, verificationMode: 'waiter' });
+
+    const detail = await as(waiter).get<StaffSessionDetail>(`/staff/sessions/${state.session.id}`);
+    expect(detail.verificationCode).toMatch(/^\d{4}$/);
+
+    const random = await as(waiter).post(`/staff/sessions/${state.session.id}/pin`);
+    expect(random.statusCode).toBe(200);
+    expect(random.json<{ code: string }>().code).toMatch(/^\d{4}$/);
+    expect(
+      (await as(waiter).post(`/staff/sessions/${state.session.id}/pin`, { code: '12a4' }))
+        .statusCode,
+    ).toBe(400);
+    expect(
+      (await as(waiter).post(`/staff/sessions/${state.session.id}/pin`, { code: '4321' })).json(),
+    ).toEqual({
+      code: '4321',
+    });
+
+    expect(errorCode(await guest.call('POST', '/guest/session/verify', { code: '1111' }))).toBe(
+      'invalid_code',
+    );
+    const ok = await guest.call('POST', '/guest/session/verify', { code: '4321' });
+    expect(ok.json<GuestSessionState>().session.verified).toBe(true);
+    // Staff still see the PIN after the table is confirmed, to tell it to the next guests.
+    expect(
+      (await as(waiter).get<StaffSessionDetail>(`/staff/sessions/${state.session.id}`))
+        .verificationCode,
+    ).toBe('4321');
+  });
+});
+
+describe('the host comes back (FR-GOS-20)', () => {
+  it('keeps the host role when the same phone scans again after closing the browser', async () => {
+    const host = new Device(t, 'konobar-kafa');
+    const first = (await host.join(f.tables.T8!)).json<GuestSessionState>();
+    // A reopened browser still has the device cookie (it lasts a year), nothing else.
+    const reopened = new Device(t, 'konobar-kafa');
+    reopened.cookie = host.cookie;
+    const again = (await reopened.join(f.tables.T8!)).json<GuestSessionState>();
+    expect(again.session.id).toBe(first.session.id);
+    expect(again.me).toMatchObject({ id: first.me.id, isHost: true, status: 'approved' });
+
+    // Anyone else still waits for the host or a waiter.
+    const other = (
+      await new Device(t, 'konobar-kafa').join(f.tables.T8!)
+    ).json<GuestSessionState>();
+    expect(other.me.status).toBe('pending_approval');
+  });
+
+  it('sets a long-lived, host-only device cookie', async () => {
+    const res = await new Device(t, 'konobar-kafa').call('GET', '/guest/venue');
+    const cookie = res.cookies.find((c) => c.name === 'qafe_gd')!;
+    expect(cookie.maxAge).toBe(365 * 24 * 60 * 60);
+    expect(cookie).toMatchObject({ httpOnly: true, path: '/', sameSite: 'Lax' });
+    expect(cookie.domain).toBeUndefined();
+  });
+});

@@ -1,9 +1,12 @@
 import { Controller, Get, HttpCode, HttpStatus, Inject, Res } from '@nestjs/common';
+import { Public } from '../common/auth/auth.guard.js';
 import type { Redis } from '@qafe/redis';
 import type { FastifyReply } from 'fastify';
 import { REDIS, redisUp } from '../common/redis/redis.module.js';
 import { CoreHealth } from '../modules/core/index.js';
 
+// Public: probes for Docker, Traefik and the orchestrator.
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(
