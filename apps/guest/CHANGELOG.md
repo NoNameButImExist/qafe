@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.4.0](https://github.com/NoNameButImExist/qafe/compare/guest-v0.3.0...guest-v0.4.0) (2026-10-02)
+
+
+### Features
+
+* nuzna izmjena sifre postavljene, login trotlanje, vibracija not… ([44946af](https://github.com/NoNameButImExist/qafe/commit/44946af7078f5f4476eae01cda523dc3c6243535))
+* nuzna izmjena sifre postavljene, login trotlanje, vibracija notif, zasticene rute ([cbcaf02](https://github.com/NoNameButImExist/qafe/commit/cbcaf02a53398a475b8489604e97472521868290))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @qafe/contracts bumped to 0.5.0
+    * @qafe/ui bumped to 0.4.0
+
 ## [0.3.0](https://github.com/NoNameButImExist/qafe/compare/guest-v0.2.0...guest-v0.3.0) (2026-10-01)
 
 

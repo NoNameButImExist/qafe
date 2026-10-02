@@ -1,16 +1,16 @@
 {
-  "apps/admin": "0.4.0",
-  "apps/api": "0.4.0",
-  "apps/guest": "0.3.0",
-  "apps/panel": "0.4.0",
-  "apps/staff": "0.3.0",
+  "apps/admin": "0.5.0",
+  "apps/api": "0.5.0",
+  "apps/guest": "0.4.0",
+  "apps/panel": "0.5.0",
+  "apps/staff": "0.4.0",
   "apps/web": "0.3.0",
-  "apps/worker": "0.4.0",
-  "packages/auth": "0.2.1",
+  "apps/worker": "0.5.0",
+  "packages/auth": "0.3.0",
   "packages/config": "0.2.0",
-  "packages/contracts": "0.4.0",
-  "packages/db": "0.2.1",
+  "packages/contracts": "0.5.0",
+  "packages/db": "0.2.2",
   "packages/observability": "0.2.1",
   "packages/redis": "0.3.0",
-  "packages/ui": "0.3.1"
+  "packages/ui": "0.4.0"
 }

@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.2](https://github.com/NoNameButImExist/qafe/compare/db-v0.2.1...db-v0.2.2) (2026-10-02)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @qafe/auth bumped to 0.3.0
+
 ## [0.2.1](https://github.com/NoNameButImExist/qafe/compare/db-v0.2.0...db-v0.2.1) (2026-10-01)
 
 
