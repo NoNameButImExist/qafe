@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { domMax, LazyMotion, MotionConfig } from 'motion/react';
 import { applyTheme } from '@qafe/ui';
 import './i18n';
 import { ApiError } from './lib/api';
@@ -27,7 +28,11 @@ createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <RouterProvider router={router} />
+        <LazyMotion features={domMax} strict>
+          <MotionConfig reducedMotion="user">
+            <RouterProvider router={router} />
+          </MotionConfig>
+        </LazyMotion>
       </AuthProvider>
     </QueryClientProvider>
   </StrictMode>,

@@ -68,6 +68,7 @@ export async function insertLines(
         quantity: line.quantity,
         line_total: line.lineTotal,
         note: line.note,
+        prep_station_id: line.prepStationId,
         added_by_member_id: extra.addedByMemberId ?? null,
         replaces_order_item_id: extra.replacesOrderItemId ?? null,
       })

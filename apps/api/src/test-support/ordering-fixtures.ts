@@ -16,11 +16,15 @@ export class Device {
     readonly slug: string,
   ) {}
 
+  /** The phone's network address as the api sees it (Wi-Fi verification). */
+  ip = '198.51.100.200';
+
   async call(method: Method, url: string, payload?: object) {
     const res = await this.t.app.inject({
       method,
       url,
       payload,
+      remoteAddress: this.ip,
       headers: {
         host: `${this.slug}.qafe.test`,
         ...(this.cookie ? { cookie: `qafe_gd=${this.cookie}` } : {}),

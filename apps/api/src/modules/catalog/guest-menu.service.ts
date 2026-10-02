@@ -22,6 +22,8 @@ export interface PricedLine {
   unitPrice: string;
   lineTotal: string;
   modifiers: { optionId: string; groupName: string; optionName: string; priceDelta: string }[];
+  /** KDS station of the item, copied onto the order item. */
+  prepStationId: string | null;
 }
 
 export type QuoteResult =
@@ -64,7 +66,14 @@ export class GuestMenuService {
       const items = await trx
         .selectFrom('catalog.items as i')
         .innerJoin('catalog.categories as c', 'c.id', 'i.category_id')
-        .select(['i.id', 'i.name', 'i.price', 'i.is_available', 'c.name as category_name'])
+        .select([
+          'i.id',
+          'i.name',
+          'i.price',
+          'i.is_available',
+          'i.prep_station_id',
+          'c.name as category_name',
+        ])
         .where('i.id', 'in', itemIds)
         .where('i.deleted_at', 'is', null)
         .where('c.is_active', '=', true)
@@ -124,6 +133,7 @@ export class GuestMenuService {
           unitPrice: fromCents(unitCents),
           lineTotal: fromCents(unitCents * line.quantity),
           modifiers,
+          prepStationId: item.prep_station_id,
         });
       }
       return { ok: true, lines: priced, total: fromCents(total) };

@@ -33,7 +33,15 @@ services:
       - --accesslog=true
       - --api.dashboard=true
       - --api.insecure=true
+      - --metrics.prometheus=true
+      - --metrics.prometheus.entrypoint=metrics
+      - --entrypoints.metrics.address=:8082
     ports:
       - 127.0.0.1:${HTTP_PORT:-80}:80
       # Dashboard: http://localhost:8081
       - 127.0.0.1:${TRAEFIK_DASHBOARD_PORT:-8081}:8080
+
+  # Dev: OTLP from `pnpm dev` processes on the host (OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318).
+  otel-collector:
+    ports:
+      - 127.0.0.1:4318:4318

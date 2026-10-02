@@ -39,6 +39,8 @@ const Env = z.object({
   COOKIE_SECURE: z.stringbool().optional(),
 
   CORS_ORIGINS: z.string().default(''),
+  /** Proxies in front of the api in production (Traefik = 1; add one for a CDN). */
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).default(1),
   /** Base domain; guests reach a venue at <slug>.<DOMAIN> and the tenant comes from the host. */
   DOMAIN: z.string().min(1).default('qafe.ba'),
   /** HMAC key for the anonymous device id in the guest cookie (only the hash is stored). */
@@ -100,6 +102,7 @@ export interface AppConfig {
     mfaEncryptionKey: string | null;
   };
   corsOrigins: string[];
+  trustProxyHops: number;
   guestUrlTemplate: string;
   guest: {
     /** Guests use <slug>.<domain>; the slug is read from the request host. */
@@ -162,6 +165,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
       mfaEncryptionKey: env.MFA_ENCRYPTION_KEY || null,
     },
     guestUrlTemplate: env.GUEST_URL_TEMPLATE,
+    trustProxyHops: env.TRUST_PROXY_HOPS,
     guest: {
       domain: env.DOMAIN.toLowerCase(),
       deviceSecret: env.GUEST_SESSION_SECRET,

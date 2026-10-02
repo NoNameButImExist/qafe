@@ -1,9 +1,13 @@
 import type { GuestMenu, GuestMenuItem } from '@qafe/contracts';
-import { Button, cn, Sheet, Textarea } from '@qafe/ui';
+import { Button, cn, Textarea } from '@qafe/ui';
+import { m } from 'motion/react';
+import { Check } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cart } from '../lib/cart';
 import { formatDelta, formatMoney, multiplyMoney, sumMoney } from '../lib/format';
+import { BottomSheet } from '../motion/BottomSheet';
+import { burst } from '../motion/burst';
 import { Stepper } from './Stepper';
 
 /** One item with its options, quantity and note, added to the cart (FR-GOS-08). */
@@ -19,11 +23,29 @@ export function ItemSheet({
   onClose: () => void;
 }) {
   return (
-    <Sheet open={item !== null} onClose={onClose} title={item?.name ?? ''}>
+    <BottomSheet
+      open={item !== null}
+      onClose={onClose}
+      title={item?.name ?? ''}
+      description={item?.volumeLabel ?? undefined}
+      cover={
+        item?.imageUrl ? (
+          <m.img
+            key={item.id}
+            src={item.imageUrl}
+            alt=""
+            initial={{ scale: 1.08, opacity: 0.6 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.6, ease: [0.2, 0.8, 0.3, 1] }}
+            className="aspect-[16/10] w-full object-cover"
+          />
+        ) : undefined
+      }
+    >
       {item && (
         <ItemForm key={item.id} item={item} menu={menu} currency={currency} onDone={onClose} />
       )}
-    </Sheet>
+    </BottomSheet>
   );
 }
 
@@ -78,10 +100,7 @@ function ItemForm({
 
   return (
     <div className="flex flex-col gap-6">
-      {item.imageUrl && (
-        <img src={item.imageUrl} alt="" className="aspect-[4/3] w-full rounded-2xl object-cover" />
-      )}
-      {item.description && <p className="text-sm text-muted">{item.description}</p>}
+      {item.description && <p className="-mt-2 text-sm text-muted">{item.description}</p>}
 
       {groups.map((g) => (
         <fieldset key={g.id} className="flex flex-col gap-2">
@@ -103,10 +122,28 @@ function ItemForm({
               <label
                 key={o.id}
                 className={cn(
-                  'flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-3.5 py-2.5 text-sm',
-                  checked ? 'border-primary bg-primary/6' : 'border-line bg-surface',
+                  'flex min-h-13 cursor-pointer items-center gap-3 rounded-2xl border px-3.5 py-2.5 text-sm transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary/40',
+                  checked ? 'border-primary bg-primary/8' : 'border-line bg-surface',
                 )}
               >
+                <span
+                  aria-hidden
+                  className={cn(
+                    'grid size-6 shrink-0 place-items-center border-2 transition-colors',
+                    g.maxSelect === 1 ? 'rounded-full' : 'rounded-lg',
+                    checked ? 'border-primary bg-primary text-on-primary' : 'border-line-strong',
+                  )}
+                >
+                  {checked && (
+                    <m.span
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: 'spring', stiffness: 700, damping: 24 }}
+                    >
+                      <Check className="size-3.5" strokeWidth={3} />
+                    </m.span>
+                  )}
+                </span>
                 <input
                   type={g.maxSelect === 1 ? 'radio' : 'checkbox'}
                   name={g.id}
@@ -116,7 +153,7 @@ function ItemForm({
                     // Radios cannot be unticked natively; optional groups need that.
                     if (g.maxSelect === 1 && checked && g.minSelect === 0) toggle(g.id, o.id);
                   }}
-                  className="size-4 accent-[var(--primary)]"
+                  className="sr-only"
                 />
                 <span className="flex-1 font-medium text-ink">{o.name}</span>
                 <span className="text-muted">
@@ -143,9 +180,10 @@ function ItemForm({
         <Stepper value={quantity} onChange={setQuantity} />
         <Button
           size="lg"
-          className="flex-1"
+          className="flex-1 px-3 whitespace-nowrap"
           disabled={!valid}
-          onClick={() => {
+          onClick={(e) => {
+            burst(e.currentTarget);
             cart.add({
               itemId: item.id,
               quantity,

@@ -1,6 +1,22 @@
-import { Body, Controller, Delete, Get, Inject, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Inject,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  AddNetworkRequest,
+  SaveStationRequest,
+  type SaveStationInput,
   UpdateVenueSettingsRequest,
+  type CurrentNetwork,
   type UpdateVenueSettingsInput,
   type VenueSettings,
 } from '@qafe/contracts';
@@ -37,6 +53,51 @@ export class VenueSettingsController {
     @Body(new ZodPipe(UpdateVenueSettingsRequest)) body: UpdateVenueSettingsInput,
   ): Promise<VenueSettings> {
     return this.settings.update(staff, body);
+  }
+
+  /** The address the api sees now: on the venue's Wi-Fi, that is the venue's network. */
+  @Get('network')
+  @RequirePermission('venue.settings')
+  currentNetwork(@Req() req: FastifyRequest): CurrentNetwork {
+    return { ip: req.ip };
+  }
+
+  @Post('networks')
+  @RequirePermission('venue.settings')
+  addNetwork(
+    @CurrentStaff() staff: StaffClaims,
+    @Req() req: FastifyRequest,
+    @Body(new ZodPipe(AddNetworkRequest)) body: AddNetworkRequest,
+  ): Promise<VenueSettings> {
+    return this.settings.addNetwork(staff, body.network ?? req.ip, body.label);
+  }
+
+  @Delete('networks/:id')
+  @RequirePermission('venue.settings')
+  removeNetwork(
+    @CurrentStaff() staff: StaffClaims,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<VenueSettings> {
+    return this.settings.removeNetwork(staff, id);
+  }
+
+  @Post('stations')
+  @RequirePermission('venue.settings')
+  addStation(
+    @CurrentStaff() staff: StaffClaims,
+    @Body(new ZodPipe(SaveStationRequest)) body: SaveStationInput,
+  ): Promise<VenueSettings> {
+    return this.settings.saveStation(staff, null, body);
+  }
+
+  @Patch('stations/:id')
+  @RequirePermission('venue.settings')
+  updateStation(
+    @CurrentStaff() staff: StaffClaims,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body(new ZodPipe(SaveStationRequest)) body: SaveStationInput,
+  ): Promise<VenueSettings> {
+    return this.settings.saveStation(staff, id, body);
   }
 
   @Post('logo')

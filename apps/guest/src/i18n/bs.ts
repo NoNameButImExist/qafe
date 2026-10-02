@@ -34,6 +34,13 @@ const bs = {
       'Ovaj telefon je već za stolom {{label}}. Želite li ga napustiti i preći za ovaj sto?',
     elsewhereConfirm: 'Pređi za ovaj sto',
   },
+  hero: {
+    morning: 'Dobro jutro',
+    day: 'Dobar dan',
+    evening: 'Dobro veče',
+    atTable: 'Sto {{label}} · odaberite šta želite, narudžba ide pravo konobaru.',
+    browse: 'Pogledajte šta nudimo.',
+  },
   tabs: { menu: 'Meni', orders: 'Narudžbe', bill: 'Račun' },
   menu: {
     empty: 'Meni još nije objavljen.',
@@ -146,6 +153,7 @@ const bs = {
     pendingOthers_other: '{{count}} novih uređaja želi naručivati za ovim stolom.',
     review: 'Pogledaj',
     unverifiedWaiter: 'Prvu narudžbu konobar potvrđuje za stolom.',
+    wifi: 'Spojite se na Wi-Fi lokala i sto se potvrđuje sam, bez čekanja konobara.',
     havePin: 'Konobar vam je dao PIN? Unesite ga ovdje.',
     pinTitle: 'Unesite PIN stola',
     pinBody: 'Konobar će vam reći četverocifreni PIN.',

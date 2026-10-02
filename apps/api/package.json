@@ -25,6 +25,7 @@
     "@qafe/auth": "workspace:*",
     "@qafe/contracts": "workspace:*",
     "@qafe/db": "workspace:*",
+    "@qafe/observability": "workspace:*",
     "@qafe/redis": "workspace:*",
     "@socket.io/redis-adapter": "^8.3.0",
     "fastify": "5.12.5",

@@ -255,6 +255,8 @@ export const GuestSessionState = z.object({
     /** The waiter confirmed someone sits at the table, or the PIN was entered (FR-GOS-21). */
     verified: z.boolean(),
     verificationMode: VerificationMode,
+    /** The venue confirms tables of guests on its Wi-Fi (FR-GOS-28). */
+    wifiVerification: z.boolean(),
     requestedPaymentMethod: PaymentMethod.nullable(),
   }),
   me: SessionGuest,

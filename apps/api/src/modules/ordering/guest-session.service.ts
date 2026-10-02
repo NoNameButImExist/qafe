@@ -164,7 +164,10 @@ export class GuestSessionService {
             .execute();
           changed.add(current.sessionId);
         }
-        return loadSessionState(trx, current.sessionId, current.guestId, settings.verificationMode);
+        if (await this.confirmOnVenueNetwork(trx, ctx, settings, current)) {
+          changed.add(current.sessionId);
+        }
+        return loadSessionState(trx, current.sessionId, current.guestId, settings);
       }
       if (current) {
         if (!input.leaveCurrent) {
@@ -264,7 +267,14 @@ export class GuestSessionService {
         details: { status, host: becomesHost },
       });
       changed.add(session.id);
-      return loadSessionState(trx, session.id, guest.id, settings.verificationMode);
+      await this.confirmOnVenueNetwork(trx, ctx, settings, {
+        sessionId: session.id,
+        tableId: table.tableId,
+        tableLabel: table.tableLabel,
+        guestId: guest.id,
+        nickname: guest.nickname,
+      });
+      return loadSessionState(trx, session.id, guest.id, settings);
     });
 
     for (const sessionId of changed)
@@ -283,7 +293,10 @@ export class GuestSessionService {
         .where('id', '=', me.guestId)
         .where('last_seen_at', '<', new Date(Date.now() - 60_000))
         .execute();
-      return loadSessionState(trx, me.sessionId, me.guestId, settings.verificationMode);
+      if (await this.confirmOnVenueNetwork(trx, ctx, settings, me)) {
+        this.realtime.sessionChanged(ctx.venue.venueId, me.sessionId, 'verified');
+      }
+      return loadSessionState(trx, me.sessionId, me.guestId, settings);
     });
   }
 
@@ -323,7 +336,7 @@ export class GuestSessionService {
           ...guestActor(me.guestId, me.nickname, me.tableLabel),
         });
       }
-      return loadSessionState(trx, me.sessionId, me.guestId, settings.verificationMode);
+      return loadSessionState(trx, me.sessionId, me.guestId, settings);
     });
     this.realtime.sessionChanged(ctx.venue.venueId, state.session.id, 'verified');
     return state;
@@ -390,7 +403,7 @@ export class GuestSessionService {
         .set({ nickname })
         .where('id', '=', me.guestId)
         .execute();
-      return loadSessionState(trx, me.sessionId, me.guestId, settings.verificationMode);
+      return loadSessionState(trx, me.sessionId, me.guestId, settings);
     });
     this.realtime.sessionChanged(ctx.venue.venueId, state.session.id, 'guest');
     return state;
@@ -474,10 +487,56 @@ export class GuestSessionService {
         throw fail(HttpStatus.NOT_FOUND, ErrorCode.notFound, 'Device not found');
       }
       await fn(trx, me, target.id);
-      return loadSessionState(trx, me.sessionId, me.guestId, settings.verificationMode);
+      return loadSessionState(trx, me.sessionId, me.guestId, settings);
     });
     this.realtime.sessionChanged(ctx.venue.venueId, state.session.id, reason);
     return state;
+  }
+
+  /**
+   * Wi-Fi verification (FR-GOS-28): a request from one of the venue's networks shows the guest
+   * is in the venue, so the table counts as confirmed (no waiter, no PIN). True when it
+   * confirmed the table just now. Only the table is confirmed: a new device still waits for
+   * the host or a waiter.
+   */
+  async confirmOnVenueNetwork(
+    trx: Tx,
+    ctx: GuestContext,
+    settings: OrderingSettings,
+    me: {
+      sessionId: string;
+      tableId: string;
+      tableLabel: string;
+      guestId: string;
+      nickname: string;
+    },
+  ): Promise<boolean> {
+    if (!settings.wifiVerificationEnabled) return false;
+    const session = await trx
+      .selectFrom('ordering.table_sessions')
+      .select('verified_at')
+      .where('id', '=', me.sessionId)
+      .executeTakeFirst();
+    if (!session || session.verified_at) return false;
+    if (!(await this.venues.isVenueNetwork(ctx.venue.venueId, ctx.ip))) return false;
+    const updated = await trx
+      .updateTable('ordering.table_sessions')
+      .set({ verified_at: new Date() })
+      .where('id', '=', me.sessionId)
+      .where('verified_at', 'is', null)
+      .executeTakeFirst();
+    if (Number(updated.numUpdatedRows) === 0) return false;
+    await publish(trx, {
+      type: 'session.verified',
+      venueId: ctx.venue.venueId,
+      sessionId: me.sessionId,
+      tableId: me.tableId,
+      tableLabel: me.tableLabel,
+      entityId: me.sessionId,
+      details: { by: 'wifi' },
+      ...guestActor(me.guestId, me.nickname, me.tableLabel),
+    });
+    return true;
   }
 
   private activeSession(trx: Tx, tableId: string) {

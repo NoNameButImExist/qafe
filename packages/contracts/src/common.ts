@@ -48,6 +48,8 @@ export const ErrorCode = {
   hostOnly: 'host_only',
   passwordChangeRequired: 'password_change_required',
   mfaUnavailable: 'mfa_unavailable',
+  moduleDisabled: 'module_disabled',
+  undoExpired: 'undo_expired',
   // Staff ordering and billing (FR-KON)
   openOrders: 'open_orders',
   billChanged: 'bill_changed',

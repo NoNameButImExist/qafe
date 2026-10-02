@@ -1,5 +1,7 @@
 import type { GuestMenu, GuestSessionState, PlacedOrder } from '@qafe/contracts';
-import { Button, Sheet, Textarea } from '@qafe/ui';
+import { Button, Textarea } from '@qafe/ui';
+import { AnimatePresence, m } from 'motion/react';
+import { ShoppingBag } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
@@ -7,17 +9,22 @@ import { cart, useCart } from '../lib/cart';
 import { formatMoney, multiplyMoney, sumMoney } from '../lib/format';
 import { useNoticeContext } from '../lib/notice';
 import { useSessionAction } from '../lib/useAction';
+import { BottomSheet } from '../motion/BottomSheet';
+import { burst } from '../motion/burst';
+import { PinForm } from './Banners';
 import { Stepper } from './Stepper';
 
 /** Review before sending, with the total (FR-GOS-09); also corrects a returned order (FR-GOS-12). */
 export function CartSheet({
   open,
+  session,
   menu,
   currency,
   onClose,
   onSent,
 }: {
   open: boolean;
+  session: GuestSessionState;
   menu: GuestMenu;
   currency: string;
   onClose: () => void;
@@ -40,7 +47,12 @@ export function CartSheet({
     return { line, item, picked, total: multiplyMoney(unit, line.quantity) };
   });
   const total = sumMoney(lines.map((l) => l.total));
-  const blocked = lines.some((l) => !l.item?.isAvailable);
+  // PIN mode: the table is confirmed before the first order, right here in the cart.
+  const needsPin =
+    session.session.verificationMode === 'pin' &&
+    !session.session.verified &&
+    session.me.status === 'approved';
+  const blocked = needsPin || lines.some((l) => !l.item?.isAvailable);
 
   const send = useSessionAction(async () => {
     const items = state.lines.map(({ itemId, quantity, note, modifierOptionIds }) => ({
@@ -65,7 +77,7 @@ export function CartSheet({
   });
 
   return (
-    <Sheet
+    <BottomSheet
       open={open}
       onClose={onClose}
       title={
@@ -83,6 +95,7 @@ export function CartSheet({
               onClick={() =>
                 send.mutate(undefined, {
                   onSuccess: () => {
+                    burst({ x: window.innerWidth / 2, y: window.innerHeight * 0.6 }, 'lg');
                     cart.clear();
                     notify({ tone: 'success', text: t('cart.sent') });
                     onSent();
@@ -102,47 +115,70 @@ export function CartSheet({
       }
     >
       {state.lines.length === 0 ? (
-        <p className="py-10 text-center text-sm text-muted">{t('cart.empty')}</p>
+        <div className="flex flex-col items-center gap-3 py-10 text-center text-sm text-muted">
+          <span className="grid size-14 place-items-center rounded-full bg-surface-2">
+            <ShoppingBag className="size-6" aria-hidden />
+          </span>
+          {t('cart.empty')}
+        </div>
       ) : (
         <div className="flex flex-col gap-5">
-          <ul className="flex flex-col divide-y divide-line">
-            {lines.map(({ line, item, picked, total: lineTotal }) => (
-              <li key={line.key} className="flex flex-col gap-3 py-4 first:pt-0">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-ink">{item?.name ?? '—'}</p>
-                    {picked.length > 0 && (
-                      <p className="text-[13px] text-muted">
-                        {picked.map((o) => o.name).join(', ')}
-                      </p>
-                    )}
-                    {line.note && <p className="text-[13px] text-muted italic">„{line.note}"</p>}
-                    {!item?.isAvailable && (
-                      <p className="mt-1 text-[13px] font-semibold text-danger">
-                        {t('errors.item_unavailable')}
-                      </p>
-                    )}
+          {needsPin && <PinForm />}
+          <ul className="flex flex-col gap-2.5">
+            <AnimatePresence initial={false}>
+              {lines.map(({ line, item, picked, total: lineTotal }) => (
+                <m.li
+                  key={line.key}
+                  layout
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{
+                    opacity: 0,
+                    x: -40,
+                    height: 0,
+                    marginTop: 0,
+                    paddingTop: 0,
+                    paddingBottom: 0,
+                  }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 36 }}
+                  className="flex flex-col gap-3 overflow-hidden rounded-2xl border border-line bg-surface p-3.5"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-ink">{item?.name ?? '—'}</p>
+                      {picked.length > 0 && (
+                        <p className="text-[13px] text-muted">
+                          {picked.map((o) => o.name).join(', ')}
+                        </p>
+                      )}
+                      {line.note && <p className="text-[13px] text-muted italic">„{line.note}"</p>}
+                      {!item?.isAvailable && (
+                        <p className="mt-1 text-[13px] font-semibold text-danger">
+                          {t('errors.item_unavailable')}
+                        </p>
+                      )}
+                    </div>
+                    <span className="shrink-0 font-display font-semibold text-accent tabular-nums">
+                      {money(lineTotal)}
+                    </span>
                   </div>
-                  <span className="shrink-0 font-semibold text-ink tabular-nums">
-                    {money(lineTotal)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <Stepper
-                    value={line.quantity}
-                    min={0}
-                    onChange={(q) => cart.setQuantity(line.key, q)}
-                  />
-                  <button
-                    type="button"
-                    className="min-h-11 px-2 text-[13px] font-semibold text-danger"
-                    onClick={() => cart.setQuantity(line.key, 0)}
-                  >
-                    {t('cart.remove')}
-                  </button>
-                </div>
-              </li>
-            ))}
+                  <div className="flex items-center justify-between">
+                    <Stepper
+                      value={line.quantity}
+                      min={0}
+                      onChange={(q) => cart.setQuantity(line.key, q)}
+                    />
+                    <button
+                      type="button"
+                      className="min-h-11 px-2 text-[13px] font-semibold text-danger"
+                      onClick={() => cart.setQuantity(line.key, 0)}
+                    >
+                      {t('cart.remove')}
+                    </button>
+                  </div>
+                </m.li>
+              ))}
+            </AnimatePresence>
           </ul>
           <label className="flex flex-col gap-1.5">
             <span className="text-[13px] font-semibold text-ink">{t('cart.note')}</span>
@@ -153,12 +189,19 @@ export function CartSheet({
               onChange={(e) => cart.setNote(e.target.value)}
             />
           </label>
-          <div className="flex items-center justify-between border-t border-line pt-4 text-base font-semibold text-ink">
-            <span>{t('cart.total')}</span>
-            <span className="tabular-nums">{money(total)}</span>
+          <div className="flex items-center justify-between rounded-2xl bg-navy-900 px-4 py-3.5 text-white">
+            <span className="text-sm font-medium text-white/75">{t('cart.total')}</span>
+            <m.span
+              key={total}
+              initial={{ y: -6, opacity: 0.4 }}
+              animate={{ y: 0, opacity: 1 }}
+              className="font-display text-lg font-semibold tabular-nums"
+            >
+              {money(total)}
+            </m.span>
           </div>
         </div>
       )}
-    </Sheet>
+    </BottomSheet>
   );
 }

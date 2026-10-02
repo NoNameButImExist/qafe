@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { CatalogModule } from '../catalog/index.js';
 import { CoreModule } from '../core/index.js';
+import { KdsService } from './kds.service.js';
 import { GuestOrdersService } from './guest-orders.service.js';
 import { GuestSessionService } from './guest-session.service.js';
 import { GuestController } from './guest.controller.js';
@@ -26,6 +27,7 @@ import { StaffController } from './staff.controller.js';
     StaffSessionsService,
     StaffOrdersService,
     PushService,
+    KdsService,
     SessionLedger,
   ],
   exports: [SessionLedger],

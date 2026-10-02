@@ -7,6 +7,8 @@ allowBuilds:
   '@swc/core': true
   cpu-features: false
   esbuild: false
+  # Optional native speed-up for BullMQ's msgpack; prebuilt binaries are used without it.
+  msgpackr-extract: false
   protobufjs: false
   ssh2: false
   unrs-resolver: false

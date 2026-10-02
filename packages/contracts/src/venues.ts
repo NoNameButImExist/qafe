@@ -16,6 +16,7 @@ export const RESERVED_SLUGS = [
   'app',
   'traefik',
   'mail',
+  'grafana',
 ] as const;
 
 export const VenueSlug = z

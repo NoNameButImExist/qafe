@@ -160,6 +160,7 @@ export const OrderingEvent = z.object({
     'order.disputed',
     'order.accepted',
     'order.served',
+    'order.ready',
     'order.returned',
     'order.rejected',
     'order.cancelled',

@@ -1,5 +1,6 @@
 import type { GuestSessionState, SessionOrder } from '@qafe/contracts';
 import { Button, cn, ConfirmDialog } from '@qafe/ui';
+import { AnimatePresence, m } from 'motion/react';
 import { MessageSquareText, ShieldAlert } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -24,6 +25,9 @@ const TONES: Record<Shown, string> = {
 };
 
 const INACTIVE = ['cancelled', 'rejected', 'withdrawn'];
+
+/** The way an order goes; returned, cancelled and similar orders show only their badge. */
+const STEPS = ['new', 'accepted', 'preparing', 'ready', 'served'] as const;
 
 /** "Izmijenjeno" is an accepted order that staff changed (FR-GOS-10, 11). */
 const shownStatus = (order: SessionOrder): Shown =>
@@ -54,8 +58,9 @@ export function OrdersView({
   }
   return (
     <div className="flex flex-col gap-3 px-4 py-5">
-      {state.orders.map((order) => (
+      {state.orders.map((order, index) => (
         <OrderCard
+          index={index}
           key={order.id}
           order={order}
           state={state}
@@ -99,6 +104,7 @@ export function OrdersView({
 }
 
 function OrderCard({
+  index,
   order,
   state,
   currency,
@@ -106,6 +112,7 @@ function OrderCard({
   onWithdraw,
   onDispute,
 }: {
+  index: number;
   order: SessionOrder;
   state: GuestSessionState;
   currency: string;
@@ -124,7 +131,17 @@ function OrderCard({
     state.me.status === 'approved';
 
   return (
-    <article className="rounded-2xl border border-line bg-surface p-4">
+    <m.article
+      layout
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: Math.min(index, 5) * 0.05, ease: [0.2, 0.8, 0.3, 1] }}
+      className={cn(
+        'rounded-[22px] border bg-surface p-4 shadow-card transition-shadow',
+        order.status === 'ready' ? 'border-success/50 ring-4 ring-success/10' : 'border-line',
+        INACTIVE.includes(order.status) && 'opacity-70',
+      )}
+    >
       <header className="flex items-start justify-between gap-3">
         <div>
           <h3 className="font-semibold text-ink">
@@ -141,10 +158,30 @@ function OrderCard({
               : t('orders.byStaff')}
           </p>
         </div>
-        <span className={cn('shrink-0 rounded-full px-2.5 py-1 text-xs font-bold', TONES[status])}>
-          {t(`orders.status.${status}`)}
-        </span>
+        <AnimatePresence mode="popLayout" initial={false}>
+          <m.span
+            key={status}
+            initial={{ scale: 0.6, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.6, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 26 }}
+            className={cn(
+              'flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold',
+              TONES[status],
+            )}
+          >
+            {['new', 'accepted', 'modified', 'preparing'].includes(status) && (
+              <span className="relative flex size-1.5">
+                <span className="absolute inline-flex size-full animate-ping rounded-full bg-current opacity-60" />
+                <span className="relative inline-flex size-1.5 rounded-full bg-current" />
+              </span>
+            )}
+            {t(`orders.status.${status}`)}
+          </m.span>
+        </AnimatePresence>
       </header>
+
+      <Progress status={order.status} />
 
       <ul className="mt-3 flex flex-col gap-1.5 text-sm">
         {order.items.map((item) => {
@@ -227,6 +264,39 @@ function OrderCard({
           )}
         </div>
       )}
-    </article>
+    </m.article>
+  );
+}
+
+/** Five dots on a line, filled up to where the order is (FR-GOS-10). */
+function Progress({ status }: { status: SessionOrder['status'] }) {
+  const { t } = useTranslation();
+  const step = STEPS.indexOf(status as (typeof STEPS)[number]);
+  if (step < 0) return null;
+  return (
+    <div
+      className="relative mt-4 mb-1 flex items-center justify-between px-1"
+      role="img"
+      aria-label={t(`orders.status.${status}`)}
+    >
+      <div className="absolute inset-x-1 h-1 rounded-full bg-surface-2" />
+      <m.div
+        className="absolute left-1 h-1 rounded-full bg-gradient-to-r from-primary to-blue-bright"
+        initial={false}
+        animate={{ width: `calc(${(step / (STEPS.length - 1)) * 100}% - 0.5rem)` }}
+        transition={{ type: 'spring', stiffness: 120, damping: 20 }}
+      />
+      {STEPS.map((s, i) => (
+        <m.span
+          key={s}
+          initial={false}
+          animate={{ scale: i === step ? 1.25 : 1 }}
+          className={cn(
+            'relative size-2.5 rounded-full ring-4 ring-surface transition-colors',
+            i <= step ? 'bg-primary' : 'bg-line-strong',
+          )}
+        />
+      ))}
+    </div>
   );
 }

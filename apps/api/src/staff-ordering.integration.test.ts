@@ -3,11 +3,13 @@
 import type {
   Floor,
   GuestSessionState,
+  KdsView,
   PaymentResult,
   PlacedOrder,
   StaffOrder,
   StaffOrderList,
   StaffSessionDetail,
+  VenueSettings,
 } from '@qafe/contracts';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -463,5 +465,184 @@ describe('the host comes back (FR-GOS-20)', () => {
     expect(cookie.maxAge).toBe(365 * 24 * 60 * 60);
     expect(cookie).toMatchObject({ httpOnly: true, path: '/', sameSite: 'Lax' });
     expect(cookie.domain).toBeUndefined();
+  });
+});
+
+describe('Wi-Fi verification (FR-GOS-28)', () => {
+  const VENUE_IP = '203.0.113.7';
+
+  it('confirms the table for a guest on the venue network, only when turned on', async () => {
+    const table = async (label: string) => {
+      const token = randomUUID().replaceAll('-', '');
+      await t.admin.query(
+        `INSERT INTO core.tables (venue_id, label, qr_token) VALUES ($1, $2, $3)`,
+        [f.venueId, label, token],
+      );
+      return token;
+    };
+    const [w1, w2] = [await table('W1'), await table('W2')];
+    const venueCall = (
+      method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+      url: string,
+      payload?: object,
+    ) =>
+      t.app.inject({
+        method,
+        url,
+        payload,
+        headers: { authorization: `Bearer ${owner}` },
+        remoteAddress: VENUE_IP,
+      });
+
+    // The owner, on the venue Wi-Fi, adds "this network" and a range.
+    expect((await venueCall('GET', '/venue/network')).json()).toEqual({ ip: VENUE_IP });
+    let settings = (
+      await venueCall('POST', '/venue/networks', { label: 'Wi-Fi sala' })
+    ).json<VenueSettings>();
+    expect(settings.networks.map((n) => [n.network, n.label])).toEqual([[VENUE_IP, 'Wi-Fi sala']]);
+    settings = (
+      await venueCall('POST', '/venue/networks', { network: '192.0.2.77/24' })
+    ).json<VenueSettings>();
+    expect(settings.networks.map((n) => n.network)).toEqual([VENUE_IP, '192.0.2.0/24']);
+    expect((await venueCall('POST', '/venue/networks', { network: '999.1.1.1' })).statusCode).toBe(
+      400,
+    );
+
+    // Off by default: a guest on the venue network still needs the waiter.
+    const first = new Device(t, 'konobar-kafa');
+    first.ip = VENUE_IP;
+    const off = (await first.join(w1, { leaveCurrent: true })).json<GuestSessionState>();
+    expect(off.session).toMatchObject({ verified: false, wifiVerification: false });
+    await first.call('DELETE', '/guest/session');
+
+    settings = (
+      await venueCall('PATCH', '/venue', { ordering: { wifiVerificationEnabled: true } })
+    ).json<VenueSettings>();
+    expect(settings.ordering.wifiVerificationEnabled).toBe(true);
+
+    // Mobile data: not confirmed.
+    const mobile = new Device(t, 'konobar-kafa');
+    const outside = (await mobile.join(w2, { leaveCurrent: true })).json<GuestSessionState>();
+    expect(outside.session).toMatchObject({ verified: false, wifiVerification: true });
+
+    // The same phone joins the venue Wi-Fi (a range address): confirmed on the next request.
+    mobile.ip = '192.0.2.15';
+    expect((await mobile.state()).session.verified).toBe(true);
+    const verified = await t.admin.query<{ details: { by: string } }>(
+      `SELECT payload->'details' AS details FROM ordering.outbox
+        WHERE event_type = 'session.verified' AND aggregate_id = $1`,
+      [outside.session.id],
+    );
+    expect(verified.rows.map((r) => r.details.by)).toEqual(['wifi']);
+
+    // A second device on the Wi-Fi still waits for the host: only the table is confirmed.
+    const friend = new Device(t, 'konobar-kafa');
+    friend.ip = VENUE_IP;
+    expect((await friend.join(w2)).json<GuestSessionState>().me.status).toBe('pending_approval');
+
+    // Removing the network stops it again.
+    const id = settings.networks.find((n) => n.network === VENUE_IP)!.id;
+    expect(
+      (await venueCall('DELETE', `/venue/networks/${id}`)).json<VenueSettings>().networks,
+    ).toHaveLength(1);
+    await venueCall('PATCH', '/venue', { ordering: { wifiVerificationEnabled: false } });
+  });
+});
+
+describe('kitchen and bar screens (KDS module, FR-KON-24..29)', () => {
+  it('shows accepted items per station, marks them ready, undoes, and readies the order', async () => {
+    // Off until the admin enables the module.
+    expect(errorCode(await staffCall(t, waiter, 'GET', '/staff/kds'))).toBe('module_disabled');
+    await t.admin.query(
+      `INSERT INTO core.venue_modules (venue_id, module_code) VALUES ($1, 'kds')`,
+      [f.venueId],
+    );
+
+    const stations = await staffCall(t, owner, 'POST', '/venue/stations', {
+      name: 'Šank',
+      type: 'bar',
+    });
+    expect(stations.statusCode).toBe(201);
+    const bar = stations.json<VenueSettings>().stations[0]!;
+    expect(bar).toMatchObject({ name: 'Šank', type: 'bar', isActive: true });
+    expect(errorCode(await staffCall(t, owner, 'POST', '/venue/stations', { name: 'Šank' }))).toBe(
+      'label_taken',
+    );
+    const item = await staffCall(t, owner, 'PATCH', `/catalog/items/${f.espresso}`, {
+      prepStationId: bar.id,
+    });
+    expect(item.statusCode).toBe(200);
+
+    const token = randomUUID().replaceAll('-', '');
+    await t.admin.query(
+      `INSERT INTO core.tables (venue_id, label, qr_token) VALUES ($1, 'K1', $2)`,
+      [f.venueId, token],
+    );
+    const guest = new Device(t, 'konobar-kafa');
+    await guest.join(token, { leaveCurrent: true });
+    const order = (
+      await guest.order([{ itemId: f.espresso, quantity: 2, modifierOptionIds: [f.milk] }])
+    ).json<{
+      order: { id: string };
+    }>().order;
+
+    // Not accepted yet: nothing on the screen.
+    let view = (await staffCall(t, waiter, 'GET', `/staff/kds?station=${bar.id}`)).json<KdsView>();
+    expect(view.open).toEqual([]);
+    expect(view).toMatchObject({ warningMinutes: 5, criticalMinutes: 10 });
+
+    await staffCall(t, waiter, 'POST', `/staff/orders/${order.id}/accept`);
+    view = (await staffCall(t, waiter, 'GET', `/staff/kds?station=${bar.id}`)).json<KdsView>();
+    expect(view.open).toHaveLength(1);
+    expect(view.open[0]).toMatchObject({ tableLabel: 'K1' });
+    expect(view.open[0]!.items[0]).toMatchObject({
+      name: 'Espresso',
+      quantity: 2,
+      modifiers: ['Kravlje'],
+      status: 'pending',
+    });
+    const itemId = view.open[0]!.items[0]!.id;
+
+    expect(
+      (await staffCall(t, waiter, 'POST', `/staff/kds/orders/${order.id}/start?station=${bar.id}`))
+        .statusCode,
+    ).toBe(204);
+    expect((await guest.state()).orders[0]!.status).toBe('preparing');
+
+    expect(
+      (await staffCall(t, waiter, 'POST', `/staff/kds/items/${itemId}/ready`)).statusCode,
+    ).toBe(204);
+    expect((await guest.state()).orders[0]!.status).toBe('ready');
+    view = (await staffCall(t, waiter, 'GET', `/staff/kds?station=${bar.id}`)).json<KdsView>();
+    expect(view.open).toEqual([]);
+    expect(view.done[0]!.items[0]).toMatchObject({ id: itemId, status: 'ready' });
+
+    // Undo within seconds brings it back; a second "ready" readies the order again.
+    expect((await staffCall(t, waiter, 'POST', `/staff/kds/items/${itemId}/undo`)).statusCode).toBe(
+      204,
+    );
+    expect((await guest.state()).orders[0]!.status).toBe('preparing');
+    await staffCall(t, waiter, 'POST', `/staff/kds/items/${itemId}/ready`);
+    // The updated_at trigger would reset the time, so it is paused for this one update.
+    await t.admin.query(`ALTER TABLE ordering.order_items DISABLE TRIGGER trg_updated_at`);
+    await t.admin.query(
+      `UPDATE ordering.order_items SET updated_at = now() - interval '1 minute' WHERE id = $1`,
+      [itemId],
+    );
+    await t.admin.query(`ALTER TABLE ordering.order_items ENABLE TRIGGER trg_updated_at`);
+    expect(errorCode(await staffCall(t, waiter, 'POST', `/staff/kds/items/${itemId}/undo`))).toBe(
+      'undo_expired',
+    );
+
+    // The waiter serves it; the order leaves the screen's open list for good.
+    expect((await staffCall(t, waiter, 'POST', `/staff/orders/${order.id}/serve`)).statusCode).toBe(
+      204,
+    );
+    expect((await guest.state()).orders[0]!.status).toBe('served');
+    const ready = await t.admin.query(
+      `SELECT 1 FROM ordering.outbox WHERE event_type = 'order.ready' AND aggregate_id = $1`,
+      [order.id],
+    );
+    expect(ready.rowCount).toBe(2);
   });
 });

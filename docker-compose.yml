@@ -12,6 +12,10 @@
 #   staff.DOMAIN             staff app          panel.DOMAIN      venue panel
 #   admin.DOMAIN             platform admin     s3.DOMAIN         menu images (MinIO)
 #   DOMAIN, www.DOMAIN       public landing page (apps/web)
+#   grafana.DOMAIN           monitoring (profile monitoring)
+#
+# Profile monitoring: otel-collector, prometheus, loki, alloy, grafana (`make up` includes it).
+# The backup service (profile app) dumps the database every night into S3 (MinIO locally).
 #
 # Images are <QAFE_IMAGE_PREFIX>-<app>:<tag>; locally qafe-api:local etc. (built here).
 
@@ -30,6 +34,8 @@ x-backend-env: &backend-env
   POSTGRES_PORT: 5432
   REDIS_HOST: redis
   REDIS_PORT: 6379
+  # Metrics to the collector (profile monitoring); without it they are simply not sent.
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
 
 x-web: &web
   profiles: [app]
@@ -119,6 +125,18 @@ services:
     image: cgr.dev/chainguard/minio-client:latest
     profiles: [infra, app]
     command: ['mb', '--ignore-existing', 'qafe/${S3_BUCKET_MENU_IMAGES:-menu-images}']
+    environment:
+      MC_HOST_qafe: http://${S3_ACCESS_KEY}:${S3_SECRET_KEY}@minio:9000
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks: [internal]
+
+  # One-off: the private bucket for database backups.
+  minio-backups-bucket:
+    image: cgr.dev/chainguard/minio-client:latest
+    profiles: [infra, app]
+    command: ['mb', '--ignore-existing', 'qafe/${BACKUP_BUCKET:-backups}']
     environment:
       MC_HOST_qafe: http://${S3_ACCESS_KEY}:${S3_SECRET_KEY}@minio:9000
     depends_on:
@@ -294,6 +312,9 @@ services:
       - --ping=true
       - --log.level=INFO
       - --accesslog=true
+      - --metrics.prometheus=true
+      - --metrics.prometheus.entrypoint=metrics
+      - --entrypoints.metrics.address=:8082
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
@@ -305,9 +326,119 @@ services:
     networks: [internal]
     logging: *logging
 
+  # Nightly database backup: pg_dump, encrypted, to s3://BACKUP_BUCKET (daily/ and weekly/).
+  # make backup (now), make backup-restore-test (restore the newest into a scratch database).
+  backup:
+    image: ${QAFE_IMAGE_PREFIX:-qafe}-backup:${BACKUP_TAG:-${QAFE_TAG:-local}}
+    build:
+      context: .
+      dockerfile: infra/docker/backup.Dockerfile
+    profiles: [app]
+    restart: unless-stopped
+    environment:
+      TZ: ${BACKUP_TZ:-Europe/Sarajevo}
+      BACKUP_AT: ${BACKUP_AT:-02:30}
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_ADMIN_USER:-qafe_admin}
+      PGPASSWORD: ${POSTGRES_ADMIN_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-qafe}
+      BACKUP_PASSPHRASE: ${BACKUP_PASSPHRASE:?Set BACKUP_PASSPHRASE in .env}
+      BACKUP_BUCKET: ${BACKUP_BUCKET:-backups}
+      BACKUP_KEEP_DAILY: ${BACKUP_KEEP_DAILY:-7}
+      BACKUP_KEEP_WEEKLY: ${BACKUP_KEEP_WEEKLY:-4}
+      # MinIO here; on a server point these at an off-site S3 (Backblaze B2, Hetzner, AWS).
+      S3_ENDPOINT: ${BACKUP_S3_ENDPOINT:-http://minio:9000}
+      AWS_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY:-${S3_ACCESS_KEY}}
+      AWS_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_KEY:-${S3_SECRET_KEY}}
+      AWS_DEFAULT_REGION: ${BACKUP_S3_REGION:-us-east-1}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-backups-bucket:
+        condition: service_completed_successfully
+    networks: [internal]
+    logging: *logging
+
+  # ---------------------------------------------------------------- monitoring
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.161.0
+    profiles: [monitoring]
+    restart: unless-stopped
+    command: ['--config=/etc/otelcol/config.yaml']
+    volumes:
+      - ./infra/monitoring/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    networks: [internal]
+    logging: *logging
+
+  prometheus:
+    image: prom/prometheus:v3.13.4
+    profiles: [monitoring]
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-15d}
+    volumes:
+      - ./infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheusdata:/prometheus
+    networks: [internal]
+    logging: *logging
+
+  loki:
+    image: grafana/loki:3.7.1
+    profiles: [monitoring]
+    restart: unless-stopped
+    command: ['-config.file=/etc/loki/config.yaml']
+    volumes:
+      - ./infra/monitoring/loki.yaml:/etc/loki/config.yaml:ro
+      - lokidata:/loki
+    networks: [internal]
+    logging: *logging
+
+  # Ships every container's logs to Loki.
+  alloy:
+    image: grafana/alloy:v1.20.1
+    profiles: [monitoring]
+    restart: unless-stopped
+    command: ['run', '/etc/alloy/config.alloy', '--storage.path=/var/lib/alloy']
+    volumes:
+      - ./infra/monitoring/alloy.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on: [loki]
+    networks: [internal]
+    logging: *logging
+
+  grafana:
+    image: grafana/grafana:12.4.2
+    profiles: [monitoring]
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_ANALYTICS_REPORTING_ENABLED: 'false'
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/qafe-overview.json
+    volumes:
+      - ./infra/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    depends_on: [prometheus, loki]
+    labels:
+      traefik.enable: 'true'
+      traefik.http.routers.grafana.rule: Host(`grafana.${DOMAIN:-qafe.localhost}`)
+      # Above the api router (100): Grafana's own /api must not reach our api.
+      traefik.http.routers.grafana.priority: '200'
+      traefik.http.routers.grafana.entrypoints: web
+      traefik.http.services.grafana.loadbalancer.server.port: '3000'
+    networks: [internal]
+    logging: *logging
+
 networks:
   internal:
 
 volumes:
   pgdata:
   miniodata:
+  prometheusdata:
+  lokidata:
+  grafanadata:
