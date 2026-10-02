@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0](https://github.com/NoNameButImExist/qafe/compare/contracts-v0.4.0...contracts-v0.5.0) (2026-10-02)
+
+
+### Features
+
+* nuzna izmjena sifre postavljene, login trotlanje, vibracija not… ([44946af](https://github.com/NoNameButImExist/qafe/commit/44946af7078f5f4476eae01cda523dc3c6243535))
+* nuzna izmjena sifre postavljene, login trotlanje, vibracija notif, zasticene rute ([cbcaf02](https://github.com/NoNameButImExist/qafe/commit/cbcaf02a53398a475b8489604e97472521868290))
+
 ## [0.4.0](https://github.com/NoNameButImExist/qafe/compare/contracts-v0.3.0...contracts-v0.4.0) (2026-10-01)
 
 
