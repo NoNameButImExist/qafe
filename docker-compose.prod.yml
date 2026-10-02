@@ -70,6 +70,24 @@ services:
       traefik.http.routers.web.entrypoints: websecure
       traefik.http.routers.web.tls.certresolver: le
 
+  backup:
+    restart: always
+
+  grafana:
+    restart: always
+    labels:
+      traefik.http.routers.grafana.entrypoints: websecure
+      traefik.http.routers.grafana.tls.certresolver: le
+
+  otel-collector:
+    restart: always
+  prometheus:
+    restart: always
+  loki:
+    restart: always
+  alloy:
+    restart: always
+
   traefik:
     restart: always
     command:
@@ -84,6 +102,9 @@ services:
       - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
       - --certificatesresolvers.le.acme.dnschallenge.provider=${ACME_DNS_PROVIDER:?Set ACME_DNS_PROVIDER}
       - --ping=true
+      - --metrics.prometheus=true
+      - --metrics.prometheus.entrypoint=metrics
+      - --entrypoints.metrics.address=:8082
       - --log.level=WARN
       - --accesslog=true
     environment:

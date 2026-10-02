@@ -47,7 +47,11 @@ export const VenueSettings = z.object({
     sessionVerificationMode: z.enum(['waiter', 'pin']),
     deviceApprovalRequired: z.boolean(),
     orderRejectionEnabled: z.boolean(),
+    /** FR-GOS-28: guests on one of `networks` confirm the table without a waiter or PIN. */
+    wifiVerificationEnabled: z.boolean(),
   }),
+  /** The venue's networks (public IP addresses) for Wi-Fi verification. */
+  networks: z.array(z.object({ id: z.uuid(), network: z.string(), label: z.string().nullable() })),
   /** FR-SEF-07: one VAT rate for the venue, prices include VAT. */
   vatRate: z.string(),
   /** FR-SEF-05 */
@@ -58,6 +62,9 @@ export const VenueSettings = z.object({
   }),
   modules: z.array(z.string()),
   openingHours: OpeningHours,
+  /** KDS module (FR-SEF-12, FR-KON-25): stations and waiting thresholds. */
+  stations: z.array(z.lazy(() => PrepStation)),
+  kds: z.object({ warningMinutes: z.number().int(), criticalMinutes: z.number().int() }),
 });
 export type VenueSettings = z.infer<typeof VenueSettings>;
 
@@ -97,6 +104,7 @@ export const UpdateVenueSettingsRequest = z.object({
       sessionVerificationMode: z.enum(['waiter', 'pin']).optional(),
       deviceApprovalRequired: z.boolean().optional(),
       orderRejectionEnabled: z.boolean().optional(),
+      wifiVerificationEnabled: z.boolean().optional(),
     })
     .optional(),
   vatRate: z
@@ -112,6 +120,59 @@ export const UpdateVenueSettingsRequest = z.object({
     .optional(),
   /** Replaces the whole week. */
   openingHours: OpeningHours.optional(),
+  kds: z
+    .object({
+      warningMinutes: z.number().int().min(1).max(120),
+      criticalMinutes: z.number().int().min(2).max(240),
+    })
+    .refine((k) => k.criticalMinutes > k.warningMinutes, {
+      message: 'critical_below_warning',
+      path: ['criticalMinutes'],
+    })
+    .optional(),
 });
 export type UpdateVenueSettingsRequest = z.input<typeof UpdateVenueSettingsRequest>;
 export type UpdateVenueSettingsInput = z.output<typeof UpdateVenueSettingsRequest>;
+
+/** GET /venue/network — the address the api sees for this request (the owner's network now). */
+export const CurrentNetwork = z.object({ ip: z.string() });
+export type CurrentNetwork = z.infer<typeof CurrentNetwork>;
+
+const ipv4 = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/;
+const ipv6 = /^[0-9a-fA-F:]+(\/\d{1,3})?$/;
+
+/** POST /venue/networks — an address or range; without one, the caller's current address. */
+export const AddNetworkRequest = z.object({
+  network: z
+    .string()
+    .trim()
+    .refine((v) => ipv4.test(v) || (v.includes(':') && ipv6.test(v)), 'network')
+    .optional(),
+  label: z
+    .string()
+    .trim()
+    .max(60)
+    .transform((v) => (v === '' ? undefined : v))
+    .optional(),
+});
+export type AddNetworkRequest = z.input<typeof AddNetworkRequest>;
+
+export const StationType = z.enum(['bar', 'kitchen', 'other']);
+export type StationType = z.infer<typeof StationType>;
+
+/** A preparation station: bar, kitchen… (FR-SEF-12). */
+export const PrepStation = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  type: StationType,
+  isActive: z.boolean(),
+});
+export type PrepStation = z.infer<typeof PrepStation>;
+
+export const SaveStationRequest = z.object({
+  name: z.string().trim().min(1).max(60),
+  type: StationType.default('bar'),
+  isActive: z.boolean().optional(),
+});
+export type SaveStationRequest = z.input<typeof SaveStationRequest>;
+export type SaveStationInput = z.output<typeof SaveStationRequest>;

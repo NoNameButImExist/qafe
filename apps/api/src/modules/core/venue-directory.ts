@@ -37,6 +37,8 @@ export interface OrderingSettings {
   deviceApprovalRequired: boolean;
   deviceBlockHours: number;
   orderRejectionEnabled: boolean;
+  /** FR-GOS-28 */
+  wifiVerificationEnabled: boolean;
   paymentMethods: { method: PaymentMethod; isDefault: boolean }[];
   /** Within opening hours now (or the venue has no schedule), FR-SEF-02, FR-GOS-03. */
   openNow: boolean;
@@ -143,6 +145,7 @@ export class VenueDirectory {
           'device_approval_required',
           'device_block_hours',
           'order_rejection_enabled',
+          'wifi_verification_enabled',
         ])
         .where('id', '=', venueId)
         .where('deleted_at', 'is', null)
@@ -183,6 +186,7 @@ export class VenueDirectory {
         deviceApprovalRequired: venue.device_approval_required,
         deviceBlockHours: venue.device_block_hours,
         orderRejectionEnabled: venue.order_rejection_enabled,
+        wifiVerificationEnabled: venue.wifi_verification_enabled,
         paymentMethods: methods.map((m) => ({ method: m.method, isDefault: m.is_default })),
       };
     });
@@ -242,5 +246,61 @@ export class VenueDirectory {
         .execute(),
     );
     return new Map(rows.map((r) => [r.id, r.full_name]));
+  }
+
+  /** The address is in one of the venue's networks (FR-GOS-28). */
+  async isVenueNetwork(venueId: string, ip: string): Promise<boolean> {
+    if (!ip) return false;
+    return this.db.withTenant({ venueId, isSuperAdmin: false }, async (trx) => {
+      const { rows } = await sql<{ ok: boolean }>`
+        select exists (
+          select 1 from core.venue_networks where network >>= ${ip}::inet
+        ) as ok
+      `.execute(trx);
+      return rows[0]?.ok ?? false;
+    });
+  }
+
+  /** The admin turned the module on for the venue (FR-ADM-06), e.g. "kds". */
+  async hasModule(venueId: string, module: string): Promise<boolean> {
+    const row = await this.db.withTenant({ venueId, isSuperAdmin: false }, (trx) =>
+      trx
+        .selectFrom('core.venue_modules')
+        .select('module_code')
+        .where('venue_id', '=', venueId)
+        .where('module_code', '=', module)
+        .executeTakeFirst(),
+    );
+    return row !== undefined;
+  }
+
+  /** Preparation stations and the KDS waiting thresholds (FR-KON-24, 25). */
+  async kdsSettings(venueId: string): Promise<{
+    stations: { id: string; name: string; type: 'bar' | 'kitchen' | 'other'; isActive: boolean }[];
+    warningMinutes: number;
+    criticalMinutes: number;
+  }> {
+    return this.db.withTenant({ venueId, isSuperAdmin: false }, async (trx) => {
+      const venue = await trx
+        .selectFrom('core.venues')
+        .select(['kds_warning_minutes', 'kds_critical_minutes'])
+        .where('id', '=', venueId)
+        .executeTakeFirstOrThrow();
+      const stations = await trx
+        .selectFrom('core.prep_stations')
+        .select(['id', 'name', 'type', 'is_active'])
+        .orderBy('name')
+        .execute();
+      return {
+        stations: stations.map((s) => ({
+          id: s.id,
+          name: s.name,
+          type: s.type,
+          isActive: s.is_active,
+        })),
+        warningMinutes: venue.kds_warning_minutes,
+        criticalMinutes: venue.kds_critical_minutes,
+      };
+    });
   }
 }

@@ -378,6 +378,14 @@ export interface CoreVenueModules {
   venue_id: string;
 }
 
+export interface CoreVenueNetworks {
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  label: string | null;
+  network: string;
+  venue_id: string;
+}
+
 export interface CoreVenueOpeningHours {
   closes_at: string;
   day_of_week: number;
@@ -438,6 +446,7 @@ export interface CoreVenues {
   updated_at: Generated<Timestamp>;
   vat_number: string | null;
   vat_rate: Generated<Numeric>;
+  wifi_verification_enabled: Generated<boolean>;
   zone_assignment_enabled: Generated<boolean>;
 }
 
@@ -668,6 +677,7 @@ export interface DB {
   'core.users': CoreUsers;
   'core.venue_members': CoreVenueMembers;
   'core.venue_modules': CoreVenueModules;
+  'core.venue_networks': CoreVenueNetworks;
   'core.venue_opening_hours': CoreVenueOpeningHours;
   'core.venue_payment_methods': CoreVenuePaymentMethods;
   'core.venue_roles': CoreVenueRoles;

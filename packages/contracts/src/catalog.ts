@@ -20,6 +20,8 @@ export const MenuItem = z.object({
   isAvailable: z.boolean(),
   sortOrder: z.number().int(),
   modifierGroupIds: z.array(z.uuid()),
+  /** Where it is prepared (KDS module, FR-SEF-12); null = no station. */
+  prepStationId: z.uuid().nullable(),
 });
 export type MenuItem = z.infer<typeof MenuItem>;
 
@@ -98,6 +100,7 @@ export const CreateItemRequest = z.object({
   imageUrl: z.url().max(500).nullable().optional(),
   isAvailable: z.boolean().optional(),
   modifierGroupIds: z.array(z.uuid()).max(20).optional(),
+  prepStationId: z.uuid().nullable().optional(),
 });
 export type CreateItemRequest = z.input<typeof CreateItemRequest>;
 export type CreateItemInput = z.output<typeof CreateItemRequest>;

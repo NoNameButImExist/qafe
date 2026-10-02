@@ -1,6 +1,6 @@
 import type { GuestSessionState, GuestVenue } from '@qafe/contracts';
 import { Button, Input } from '@qafe/ui';
-import { Info, KeyRound, Store, UserRoundPlus } from 'lucide-react';
+import { Info, KeyRound, Store, UserRoundPlus, Wifi } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
@@ -73,6 +73,13 @@ export function Banners({
       </Banner>,
     );
   }
+  if (state.session.wifiVerification && !state.session.verified && !venue.closedReason) {
+    items.push(
+      <Banner key="wifi" tone="info" icon={<Wifi className="size-5" />}>
+        {t('banner.wifi')}
+      </Banner>,
+    );
+  }
   if (needsPin) items.push(<PinForm key="pin" />);
   if (
     state.session.verificationMode === 'waiter' &&
@@ -102,7 +109,8 @@ export function Banners({
   return <div className="flex flex-col gap-2 px-4 pt-4">{items}</div>;
 }
 
-function PinForm({ embedded = false }: { embedded?: boolean }) {
+/** The table's PIN (FR-GOS-21); also shown in the cart when the table still needs it. */
+export function PinForm({ embedded = false }: { embedded?: boolean }) {
   const { t } = useTranslation();
   const [code, setCode] = useState('');
   const verify = useSessionAction((value: string) =>

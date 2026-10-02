@@ -5,6 +5,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AuditWriter, isAudited } from './audit-writer.js';
 import { OutboxRelay } from './outbox-relay.js';
+import { closeAbandonedSessions, purgeExpired } from './maintenance.js';
 import { PushNotifier } from './push-notifier.js';
 import { ReportingWriter } from './reporting-writer.js';
 
@@ -219,6 +220,108 @@ describe('report facts (FR-SEF-24)', () => {
       expect(isAudited(event)).toBe(false);
     } finally {
       await reporting.close();
+    }
+  });
+});
+
+describe('maintenance jobs', () => {
+  it('closes only idle tables without orders, and purges old rows', async () => {
+    const connect = (m: 'core' | 'catalog' | 'ordering' | 'billing') =>
+      new TenantDatabase(testDb.connection(m));
+    const dbs = {
+      core: connect('core'),
+      catalog: connect('catalog'),
+      ordering: connect('ordering'),
+      billing: connect('billing'),
+    };
+    try {
+      const venue = await admin.query<{ id: string }>(
+        `INSERT INTO core.venues (slug, name, status) VALUES ('odrzavanje', 'Odrzavanje', 'active') RETURNING id`,
+      );
+      const venueId = venue.rows[0]!.id;
+      const session = async (label: string, openedAgo: string, seenAgo: string) => {
+        const table = await admin.query<{ id: string }>(
+          `INSERT INTO core.tables (venue_id, label, qr_token) VALUES ($1, $2, md5(random()::text)) RETURNING id`,
+          [venueId, label],
+        );
+        const s = await admin.query<{ id: string }>(
+          `INSERT INTO ordering.table_sessions (venue_id, table_id, table_label, opened_at)
+           VALUES ($1, $2, $3, now() - $4::interval) RETURNING id`,
+          [venueId, table.rows[0]!.id, label, openedAgo],
+        );
+        const g = await admin.query<{ id: string }>(
+          `INSERT INTO ordering.session_guests (venue_id, session_id, device_hash, nickname, status, approved_at, last_seen_at)
+           VALUES ($1, $2, md5(random()::text), 'Gost 1', 'approved', now(), now() - $3::interval) RETURNING id`,
+          [venueId, s.rows[0]!.id, seenAgo],
+        );
+        await admin.query(`UPDATE ordering.table_sessions SET host_guest_id = $1 WHERE id = $2`, [
+          g.rows[0]!.id,
+          s.rows[0]!.id,
+        ]);
+        return { session: s.rows[0]!.id, table: table.rows[0]!.id, guest: g.rows[0]!.id };
+      };
+      const idle = await session('A1', '2 hours', '1 hour');
+      const active = await session('A2', '2 hours', '1 minute');
+      const fresh = await session('A3', '5 minutes', '5 minutes');
+      const withBill = await session('A4', '3 hours', '2 hours');
+      await admin.query(
+        `INSERT INTO ordering.orders (venue_id, session_id, table_id, business_date, order_number,
+           idempotency_key, status, guest_id, total, vat_rate)
+         VALUES ($1, $2, $3, current_date, 1, gen_random_uuid(), 'accepted', $4, 2.00, 17)`,
+        [venueId, withBill.session, withBill.table, withBill.guest],
+      );
+      await admin.query(
+        `INSERT INTO ordering.service_requests (venue_id, session_id, table_id, guest_id, type)
+         VALUES ($1, $2, $3, $4, 'call_waiter')`,
+        [venueId, idle.session, idle.table, idle.guest],
+      );
+
+      expect(await closeAbandonedSessions(dbs.ordering, 30)).toBe(1);
+      const states = await admin.query<{ id: string; status: string }>(
+        `SELECT id, status FROM ordering.table_sessions WHERE venue_id = $1`,
+        [venueId],
+      );
+      const status = (id: string) => states.rows.find((r) => r.id === id)!.status;
+      expect(status(idle.session)).toBe('abandoned');
+      expect(status(active.session)).toBe('open');
+      expect(status(fresh.session)).toBe('open');
+      expect(status(withBill.session)).toBe('open');
+      const released = await admin.query<{ status: string }>(
+        `SELECT status FROM ordering.session_guests WHERE id = $1`,
+        [idle.guest],
+      );
+      expect(released.rows[0]!.status).toBe('left');
+      const request = await admin.query<{ status: string }>(
+        `SELECT status FROM ordering.service_requests WHERE session_id = $1`,
+        [idle.session],
+      );
+      expect(request.rows[0]!.status).toBe('cancelled');
+
+      // Purge: an old block and an old relayed event go, recent ones stay.
+      const member = await admin.query<{ id: string }>(`SELECT gen_random_uuid() AS id`);
+      await admin.query(
+        `INSERT INTO ordering.device_blocks (venue_id, device_hash, blocked_by_member_id, blocked_until)
+         VALUES ($1, 'old', $2, now() - interval '8 days'), ($1, 'new', $2, now() + interval '1 hour')`,
+        [venueId, member.rows[0]!.id],
+      );
+      await admin.query(
+        `INSERT INTO core.outbox (venue_id, event_type, aggregate_id, payload, published_at)
+         VALUES ($1, 'x', $1, '{}', now() - interval '40 days'), ($1, 'y', $1, '{}', now())`,
+        [venueId],
+      );
+      const purged = await purgeExpired(dbs);
+      expect(purged.deviceBlocks).toBe(1);
+      expect(purged.outbox).toBeGreaterThanOrEqual(1);
+      const left = await admin.query<{ device_hash: string }>(
+        `SELECT device_hash FROM ordering.device_blocks WHERE venue_id = $1`,
+        [venueId],
+      );
+      expect(left.rows.map((r) => r.device_hash)).toEqual(['new']);
+      expect((await admin.query(`SELECT 1 FROM core.outbox WHERE event_type = 'y'`)).rowCount).toBe(
+        1,
+      );
+    } finally {
+      await Promise.all(Object.values(dbs).map((d) => d.close()));
     }
   });
 });

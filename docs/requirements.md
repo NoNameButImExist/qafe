@@ -184,8 +184,9 @@ Scenarij: gost sa susjednog stola skenira tuđi QR kod ili se pridruži tuđoj s
 | FR-GOS-25 | Prijava zloupotrebe | Gost može označiti narudžbu kao "Nije naše". Konobar dobija upozorenje, a narudžba ne ulazi u račun dok je konobar ne potvrdi ili otkaže. | MVP |
 | FR-GOS-26 | Blokada | Uređaj koji konobar ukloni iz sesije ne može otvoriti niti se pridružiti sesiji u tom lokalu 12 sati (vidi FR-KON-17). | MVP |
 | FR-GOS-27 | Ograničenja | Najviše 2 nepotvrđene narudžbe po uređaju i 5 narudžbi u minuti po sesiji. | MVP |
+| FR-GOS-28 | Wi-Fi lokala | Šef može uključiti potvrdu stola preko Wi-Fi mreže lokala. Gost koji naručuje sa javne IP adrese lokala potvrđuje sto sam, bez PIN-a i bez čekanja konobara. Opcija je po defaultu isključena i radi uz oba načina iz FR-GOS-21. | MVP |
 
-Identifikacija uređaja preko cookie-ja se može zaobići novim incognito prozorom, pa je potvrda konobara glavna zaštita. Geolokacija se ne koristi, jer u zatvorenom prostoru nije dovoljno precizna da razlikuje susjedne stolove.
+Identifikacija uređaja preko cookie-ja se može zaobići novim incognito prozorom, pa je potvrda konobara glavna zaštita. Wi-Fi potvrda (FR-GOS-28) dokazuje samo da je gost u lokalu, ne za kojim stolom sjedi. Zato ona zamjenjuje samo korak potvrde stola; narudžbe i dalje prihvata konobar, a "Nije naše" i odobravanje novih uređaja rade kao i do sada. Geolokacija se ne koristi, jer u zatvorenom prostoru nije dovoljno precizna da razlikuje susjedne stolove.
 
 ## 5. Nefunkcionalni zahtjevi
 
@@ -219,10 +220,74 @@ Svaki zahtjev ima mjerljiv kriterij, tako da se može testirati prije puštanja 
 | NFR-24 | Backup | Podaci se mogu vratiti nakon kvara. | Dnevni backup uz point-in-time recovery; RPO 15 min, RTO 4 h; test oporavka svaka 3 mjeseca |
 | NFR-25 | Revizija | Osjetljive akcije ostavljaju trag koji se ne može mijenjati. | Izmjene cijena, otkazivanja i povrati u audit logu; čuvanje najmanje 12 mjeseci |
 
+## Urađeno u verziji 0.5 (2. 10. 2026.)
+
+Pregled onoga što je dodano u ovoj fazi, s objašnjenjem kako radi i gdje se podešava.
+
+### Potvrda stola preko Wi-Fi mreže lokala (FR-GOS-28)
+
+- **Šta radi:** gost koji je spojen na Wi-Fi lokala potvrđuje sto sam. Ne mora unositi PIN niti čekati da konobar potvrdi prvu narudžbu. Na ovaj način otpada najdosadniji korak, a zaštita od naručivanja "sa ulice" ostaje.
+- **Kako radi:** šef u panelu (Postavke → Naručivanje) uključi opciju "Wi-Fi potvrda stola" i u sekciji "Wi-Fi mreže lokala" doda mrežu. Dugme "Dodaj ovu mrežu" upisuje javnu IP adresu s koje je šef trenutno spojen, a mrežu se može upisati i ručno (IPv4/IPv6 adresa ili raspon u CIDR obliku). Pri pridruživanju stolu, pri osvježavanju stanja i pri slanju narudžbe API provjeri da li je IP adresa gosta u nekoj od mreža lokala. Ako jeste, sesija dobija `verified_at` i u audit log ide događaj `session.verified` s oznakom `wifi`.
+- **Uključivanje i isključivanje:** opcija se pali i gasi u postavkama, kao i PIN način, i po defaultu je isključena. Kad je isključena ili lokal nema upisanu mrežu, sve radi kao prije (konobar ili PIN). Gost koji nije na Wi-Fi-ju lokala vidi napomenu da se spoji na Wi-Fi, a uz nju i dalje može unijeti PIN.
+- **Baza:** kolona `core.venues.wifi_verification_enabled` i tabela `core.venue_networks` (sa RLS-om), migracija `20261002090000_venue_wifi_verification.sql`.
+- **Iza proxyja:** API vjeruje samo onoliko proxy skokova koliko piše u `TRUST_PROXY_HOPS` (default 1, Traefik). Tako gost ne može lažirati IP adresu preko `X-Forwarded-For` zaglavlja.
+- **Šta namjerno nije urađeno:** ograničenje udaljenosti (geolokacija) i NFC. Geolokacija u zatvorenom prostoru nije dovoljno precizna, a NFC ne radi u Safariju na iPhoneu.
+
+### Pozadinski poslovi (worker, BullMQ)
+
+Worker sada osim outbox releja pokreće i zakazane poslove. Raspored je u Redisu (BullMQ, prefiks `qafe:jobs`), pa posao radi samo jedna instanca workera, čak i kad ih radi više.
+
+| Posao | Kada | Šta radi |
+| --- | --- | --- |
+| Zatvaranje napuštenih stolova | svakih 5 min | Otvorena sesija bez ijedne (neotkazane) narudžbe, u kojoj se nijedan uređaj nije javio `ABANDON_AFTER_MINUTES` minuta (default 30), postaje "napuštena", a njeni otvoreni zahtjevi se otkazuju. Sto se tako oslobađa i na pregledu stolova, a ne tek pri sljedećem skeniranju. Sesije s narudžbama se nikad ne zatvaraju same, jer imaju račun. |
+| Čišćenje starih podataka | svaku noć u 03:30 | Briše blokade uređaja istekle prije više od 7 dana, refresh sesije osoblja istekle ili opozvane prije više od 30 dana, i objavljene outbox redove starije od 30 dana (modul audit ih je već upisao u audit log, koji se ne briše). |
+
+### KDS: šank i kuhinja (FR-KON-24..29, modul)
+
+- **Uključivanje:** administrator uključuje modul `kds` za lokal. Šef u panelu (Postavke → Šank i kuhinja (KDS)) dodaje stanice pripreme, npr. "Šank" i "Kuhinja", i postavlja pragove boja (npr. 5 i 10 minuta). U editoru menija svakom artiklu bira stanicu. Artikli bez stanice ne idu na KDS.
+- **Ekran:** u staff aplikaciji se pojavi stavka "KDS" (`/kds`). To je ekran preko cijelog prikaza, bez navigacije, namijenjen tabletu na šanku ili u kuhinji. Na početku pita za zvuk i fullscreen, a ekran se ne gasi (Wake Lock). Stanica se bira jednom i pamti na uređaju.
+- **Rad:** kartice su grupisane po narudžbi, sa stolom i vremenom čekanja, a boja se mijenja po pragovima. Dodir na stavku je označava kao spremnu. Kad su sve stavke narudžbe spremne, narudžba postaje "Spremno" i konobar dobija zvuk i obavijest. Greška se poništava dugmetom "Poništi" u roku od 10 sekundi (server dozvoljava 15 s zbog kašnjenja mreže). "Počni pripremu" označava narudžbu kao "U pripremi", što gost vidi. Završene narudžbe zadnjih 60 minuta su dostupne preko prekidača "Završeno (60 min)".
+- **API:** `GET /staff/kds?station=…`, `POST /staff/kds/items/:id/ready`, `…/undo`, `POST /staff/kds/orders/:id/start`. Ako modul nije uključen, API vraća `module_disabled`.
+
+### Monitoring (NFR-21, NFR-22, osnova za FR-ADM-17 i 18)
+
+- **Sastav:** OpenTelemetry Collector, Prometheus, Loki, Alloy i Grafana, kao compose profil `monitoring` (`make up` ga pokreće). Tempo (tragovi) namjerno nije dodan.
+- **Metrike:** API i worker šalju metrike asinhrono preko OTLP-a svakih 15 s. Bez `OTEL_EXPORTER_OTLP_ENDPOINT` ne šalju ništa i ne troše resurse. API mjeri trajanje svakog zahtjeva s atributima `module`, `route`, `method` i `status`. Worker broji outbox događaje po modulu i tipu. Oba šalju i potrošnju CPU-a i memorije. Prometheus dodatno čita metrike Traefika (zahtjevi po aplikaciji).
+- **Logovi:** Alloy čita logove svih kontejnera i šalje ih u Loki, s oznakom servisa. Logovi se čuvaju 14 dana, a metrike 15 dana.
+- **Grafana:** `http://grafana.qafe.localhost` lokalno, `grafana.<domena>` na serveru. Lozinka je u `GRAFANA_ADMIN_PASSWORD`, a `grafana` je rezervisan slug. Početni dashboard "qafe.ba – pregled" prikazuje: zahtjeve u sekundi, p95 trajanje s pragom od 300 ms (NFR-03), postotak grešaka 5xx, zahtjeve, p95 i greške po modulu, najsporije rute, zahtjeve po aplikaciji preko Traefika, outbox događaje i greške iz logova.
+- **Otpornost:** nadzor radi u zasebnim kontejnerima, pa pad API-ja ne gasi Grafanu (NFR-22).
+- **Još nedostaje:** ekran nadzora u admin panelu (FR-ADM-17 i 18). Grafana ga za sada zamjenjuje. Alarmi (FR-ADM-21) se mogu dodati u Grafani.
+
+### Backup baze (NFR-24)
+
+- **Šta radi:** servis `backup` svaku noć u 02:30 (`BACKUP_AT`, vremenska zona `BACKUP_TZ`) napravi `pg_dump` cijele baze. Dump šifruje (AES-256, ključ iz `BACKUP_PASSPHRASE`) i šalje u S3 bucket `backups`, u folder `daily/`. Nedjeljom ista kopija ide i u `weekly/`. Čuva se zadnjih 7 dnevnih i 4 sedmične kopije, a starije se brišu same.
+- **Gdje:** lokalno u MinIO. Na serveru varijable `BACKUP_S3_ENDPOINT`, `BACKUP_S3_ACCESS_KEY` i `BACKUP_S3_SECRET_KEY` pokazuju na S3 izvan servera (npr. Backblaze B2 ili Hetzner), da kopija preživi gubitak servera.
+- **Komande:** `make backup` odmah napravi kopiju. `make backup-restore-test` vrati zadnju kopiju u zasebnu bazu `qafe_restore` i ispiše broj lokala, korisnika i narudžbi, kao provjeru da je kopija ispravna. Vraćanje u živu bazu traži `RESTORE_INTO_LIVE=yes`.
+- **Provjereno:** kopija, brisanje starih kopija, vraćanje i odbijanje pogrešne lozinke.
+- **Razlika prema NFR-24:** point-in-time recovery (arhiviranje WAL-a) još nije uveden, pa je trenutni RPO do 24 sata, a ne 15 minuta. Do produkcije treba dodati WAL arhiviranje (npr. pgBackRest ili WAL-G) ili koristiti upravljanu bazu.
+- **Važno:** bez `BACKUP_PASSPHRASE` se kopija ne može pročitati. Lozinku treba čuvati izvan servera.
+
+### Redizajn gostujuće aplikacije
+
+- **Animacije:** biblioteka `motion` (LazyMotion). Animacijski dio se učitava kao zaseban fajl nakon prvog prikaza, pa gostujući JavaScript ostaje oko 170 KB gzip (granica 200 KB, NFR-01). Telefoni s uključenim "smanji pokrete" dobijaju samo prelaze bez pomjeranja.
+- **Meni:** pozdravna kartica s imenom lokala i stolom ("Dobro jutro", "Dobar dan" ili "Dobro veče", po dobu dana). Traka kategorija prati skrolanje, a aktivna kategorija ima animiranu oznaku. Kartice artikala ulaze s animacijom dok se skrola, a artikli bez slike dobijaju obojenu pločicu s početnim slovom. Na kartici artikla piše koliko ga je već u korpi.
+- **Brže naručivanje:** artikal bez dodataka ide u korpu jednim dodirom na "+". Dodir na karticu otvara detalje. Pri dodavanju u korpu i pri slanju narudžbe iskaču zvjezdice, a telefon kratko zavibrira (gdje je podržano).
+- **Paneli:** detalji artikla, korpa i sto se otvaraju odozdo i zatvaraju se povlačenjem prema dolje, tipkom Esc ili dodirom izvan panela. Odabir dodataka ima animirane kvačice, a stavke iz korpe se uklanjaju s animacijom.
+- **Narudžbe:** svaka narudžba ima traku napretka (Poslano → Prihvaćeno → U pripremi → Spremno → Posluženo). Promjena statusa je animirana, a aktivni status ima pulsirajuću tačku. Spremna narudžba je istaknuta zelenim okvirom.
+- **Navigacija:** donji tabovi s animiranom oznakom, brojačima koji "iskoče" i prelazom između ekrana. Traka korpe izlazi odozdo i pokazuje broj artikala i ukupnu cijenu.
+
+### Nov izgled aplikacije za konobare
+
+- **Okvir:** tamna gornja traka s inicijalima, imenom lokala i indikatorom veze ("uživo", odnosno "bez veze" kad realtime veza padne). Na telefonu je navigacija plutajuća traka pri dnu, s animiranom oznakom aktivne stranice. Na širokom ekranu je meni s lijeve strane, a sadržaj koristi cijelu širinu.
+- **Stolovi:** sažetak na vrhu (čeka uslugu, traži račun, zauzet, slobodan). Pločice stolova imaju traku u boji statusa, broj gostiju, koliko je sto otvoren i jasno označene signale (nova narudžba, poziv, uređaj čeka, prijava). Stolovi kojima treba konobar blago pulsiraju, a slobodni su prikazani isprekidanim okvirom, da se zauzeti ističu.
+- **Narudžbe:** animirani filter, kartice s bojom statusa na lijevom rubu, broj stola kao veliki tamni bedž (dodir vodi na sto) i vrijeme čekanja koje postaje narandžasto nakon 5 minuta i crveno nakon 10. Prihvaćene i završene narudžbe animirano izlaze iz liste. Na širokom ekranu su narudžbe u dvije kolone.
+
 ## Odgođene stavke
 
 Zahtjevi iz MVP-a koji su svjesno pomjereni za kasnije. Prije puštanja u produkciju se vraćaju na listu.
 
 | Zahtjev | Šta je odgođeno | Trenutno stanje | Odluka |
 | --- | --- | --- | --- |
+| NFR-24 | Point-in-time recovery (RPO 15 min) | Noćni šifrovani `pg_dump` u S3, 7 dnevnih i 4 sedmične kopije, s testom vraćanja (`make backup-restore-test`). RPO je za sada do 24 h. | 2. 10. 2026. |
+| FR-ADM-17, 18 | Ekran nadzora u admin panelu | Metrike i logovi su u Grafani (`grafana.<domena>`), s dashboardom latencije i grešaka po modulu. | 2. 10. 2026. |
 | FR-KON-01 | Prijava PIN-om na zajedničkom uređaju lokala | Konobar se prijavljuje korisničkim imenom i lozinkom na svom telefonu. PIN po članu osoblja se već postavlja u panelu (`pin_hash`), pa se prijava PIN-om dodaje uz povezivanje uređaja s lokalom. | 1. 10. 2026. |

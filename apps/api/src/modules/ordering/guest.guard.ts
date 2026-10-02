@@ -22,6 +22,8 @@ import {
 export interface GuestContext {
   venue: ResolvedVenue;
   deviceHash: string;
+  /** The client's address (behind Traefik: from X-Forwarded-For), for Wi-Fi verification. */
+  ip: string;
 }
 
 type GuestRequest = FastifyRequest & { guest?: GuestContext };
@@ -51,7 +53,11 @@ export class GuestGuard implements CanActivate {
         .getResponse<FastifyReply>()
         .setCookie(GUEST_COOKIE, deviceId, guestCookieOptions(this.config.guest.cookieSecure));
     }
-    request.guest = { venue, deviceHash: deviceHash(deviceId, this.config.guest.deviceSecret) };
+    request.guest = {
+      venue,
+      deviceHash: deviceHash(deviceId, this.config.guest.deviceSecret),
+      ip: request.ip,
+    };
     return true;
   }
 }

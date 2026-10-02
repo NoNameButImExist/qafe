@@ -16,6 +16,11 @@ const Env = z.object({
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().default('mailto:admin@qafe.ba'),
   OUTBOX_POLL_MS: z.coerce.number().int().min(100).default(1000),
+  REDIS_HOST: z.string().default('localhost'),
+  REDIS_PORT: z.coerce.number().int().positive().default(6379),
+  REDIS_PASSWORD: z.string().optional(),
+  /** A table without orders and without any device seen for this long is closed. */
+  ABANDON_AFTER_MINUTES: z.coerce.number().int().min(5).default(30),
 });
 
 export type WorkerConfig = z.infer<typeof Env>;

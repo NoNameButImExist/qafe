@@ -1,9 +1,9 @@
-import type { UpdateVenueSettingsRequest, VenueSettings } from '@qafe/contracts';
+import type { CurrentNetwork, UpdateVenueSettingsRequest, VenueSettings } from '@qafe/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CircleAlert, CircleCheck, Lock, Save } from 'lucide-react';
+import { CircleAlert, CircleCheck, Lock, Save, Wifi } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, Field, Input, SectionTitle, Segmented, Switch } from '@qafe/ui';
+import { Button, Card, Field, Input, SectionTitle, Segmented, Select, Switch } from '@qafe/ui';
 import { ImageInput } from '../components/ImageInput';
 import { api, errorKey } from '../lib/api';
 import { settingsQuery } from '../lib/queries';
@@ -47,6 +47,10 @@ export function SettingsPage() {
             <VatSection data={settings.data} disabled={!canEdit} />
             <PaymentsSection data={settings.data} disabled={!canEdit} />
             <HoursSection data={settings.data} disabled={!canEdit} />
+            <NetworksSection data={settings.data} disabled={!canEdit} />
+            {settings.data.modules.includes('kds') && (
+              <KdsSection data={settings.data} disabled={!canEdit} />
+            )}
           </div>
         </div>
       )}
@@ -239,7 +243,11 @@ function OrderingSection({ data, disabled }: { data: VenueSettings; disabled: bo
   const [form, setForm] = useState(data.ordering);
   const dirty = JSON.stringify(form) !== JSON.stringify(data.ordering);
   const toggle = (
-    key: 'guestOrderingEnabled' | 'orderRejectionEnabled' | 'deviceApprovalRequired',
+    key:
+      | 'guestOrderingEnabled'
+      | 'orderRejectionEnabled'
+      | 'deviceApprovalRequired'
+      | 'wifiVerificationEnabled',
     label: string,
     hint: string,
   ) => (
@@ -285,6 +293,7 @@ function OrderingSection({ data, disabled }: { data: VenueSettings; disabled: bo
           ]}
         />
       </div>
+      {toggle('wifiVerificationEnabled', t('settings.wifi'), t('settings.wifiHint'))}
     </SectionForm>
   );
 }
@@ -479,6 +488,238 @@ function HoursSection({ data, disabled }: { data: VenueSettings; disabled: boole
           ))}
         </ul>
       )}
+    </SectionForm>
+  );
+}
+
+/** FR-GOS-28: the venue's Wi-Fi networks, by the public address the api sees. */
+function NetworksSection({ data, disabled }: { data: VenueSettings; disabled: boolean }) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const current = useQuery({
+    queryKey: ['venue', 'network'],
+    queryFn: () => api<CurrentNetwork>('/venue/network'),
+    enabled: !disabled,
+  });
+  const [manual, setManual] = useState('');
+  const change = useMutation({
+    mutationFn: (req: { add?: { network?: string; label?: string }; remove?: string }) =>
+      req.remove
+        ? api<VenueSettings>(`/venue/networks/${req.remove}`, { method: 'DELETE' })
+        : api<VenueSettings>('/venue/networks', { method: 'POST', body: req.add ?? {} }),
+    onSuccess: (next) => {
+      queryClient.setQueryData(settingsQuery.queryKey, next);
+      setManual('');
+    },
+  });
+  const known = data.networks.some((n) => n.network === current.data?.ip);
+
+  return (
+    <Card className="p-6">
+      <SectionTitle>{t('settings.networks')}</SectionTitle>
+      <p className="text-xs text-muted">{t('settings.networksHint')}</p>
+      {!data.ordering.wifiVerificationEnabled && (
+        <p className="mt-3 rounded-xl bg-surface-2 px-3 py-2 text-xs text-muted">
+          {t('settings.networksOff')}
+        </p>
+      )}
+      {change.isError && (
+        <p role="alert" className="mt-3 text-[13px] font-medium text-danger">
+          {t(errorKey(change.error))}
+        </p>
+      )}
+      <ul className="mt-4 flex flex-col divide-y divide-line">
+        {data.networks.length === 0 && (
+          <li className="py-2 text-sm text-muted">{t('settings.networksEmpty')}</li>
+        )}
+        {data.networks.map((n) => (
+          <li key={n.id} className="flex items-center gap-3 py-2.5">
+            <Wifi className="size-4 text-accent" aria-hidden />
+            <span className="flex-1 font-mono text-sm text-ink">
+              {n.network}
+              {n.label && <span className="ml-2 font-sans text-xs text-muted">{n.label}</span>}
+            </span>
+            {!disabled && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-danger!"
+                onClick={() => change.mutate({ remove: n.id })}
+              >
+                {t('common.delete')}
+              </Button>
+            )}
+          </li>
+        ))}
+      </ul>
+      {!disabled && (
+        <div className="mt-4 flex flex-col gap-3 border-t border-line pt-4">
+          {current.data && (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="flex-1 text-[13px] text-muted">
+                {t('settings.networkCurrent', { ip: current.data.ip })}
+              </p>
+              <Button
+                size="sm"
+                icon={<Wifi className="size-4" />}
+                disabled={known}
+                loading={change.isPending}
+                onClick={() => change.mutate({ add: { label: t('settings.networkLabel') } })}
+              >
+                {known ? t('settings.networkAdded') : t('settings.networkAddCurrent')}
+              </Button>
+            </div>
+          )}
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (manual.trim()) change.mutate({ add: { network: manual.trim() } });
+            }}
+          >
+            <Input
+              aria-label={t('settings.networkManual')}
+              placeholder={t('settings.networkManual')}
+              value={manual}
+              onChange={(e) => setManual(e.target.value)}
+              className="font-mono"
+            />
+            <Button type="submit" variant="secondary" disabled={!manual.trim()}>
+              {t('common.add')}
+            </Button>
+          </form>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** KDS module: preparation stations (FR-SEF-12) and waiting thresholds (FR-KON-25). */
+function KdsSection({ data, disabled }: { data: VenueSettings; disabled: boolean }) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const save = useSave();
+  const [warning, setWarning] = useState(String(data.kds.warningMinutes));
+  const [critical, setCritical] = useState(String(data.kds.criticalMinutes));
+  const [name, setName] = useState('');
+  const [type, setType] = useState<'bar' | 'kitchen' | 'other'>('bar');
+  const station = useMutation({
+    mutationFn: (req: { id?: string; name: string; type: string; isActive?: boolean }) =>
+      req.id
+        ? api<VenueSettings>(`/venue/stations/${req.id}`, { method: 'PATCH', body: req })
+        : api<VenueSettings>('/venue/stations', { method: 'POST', body: req }),
+    onSuccess: (next) => {
+      queryClient.setQueryData(settingsQuery.queryKey, next);
+      setName('');
+    },
+  });
+  const w = Number(warning);
+  const c = Number(critical);
+  const valid = Number.isInteger(w) && Number.isInteger(c) && w >= 1 && c > w && c <= 240;
+  const dirty = w !== data.kds.warningMinutes || c !== data.kds.criticalMinutes;
+  const types = ['bar', 'kitchen', 'other'] as const;
+
+  return (
+    <SectionForm
+      title={t('settings.kds')}
+      disabled={disabled}
+      dirty={dirty && valid}
+      saving={save.isPending}
+      saved={save.isSuccess}
+      error={save.error ?? station.error}
+      onSubmit={() => save.mutate({ kds: { warningMinutes: w, criticalMinutes: c } })}
+    >
+      <p className="text-xs text-muted">{t('settings.kdsHint')}</p>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label={t('settings.kdsWarning')}>
+          {({ id }) => (
+            <Input
+              id={id}
+              inputMode="numeric"
+              disabled={disabled}
+              value={warning}
+              onChange={(e) => setWarning(e.target.value)}
+            />
+          )}
+        </Field>
+        <Field
+          label={t('settings.kdsCritical')}
+          error={dirty && !valid ? t('settings.kdsInvalid') : undefined}
+        >
+          {({ id }) => (
+            <Input
+              id={id}
+              inputMode="numeric"
+              disabled={disabled}
+              value={critical}
+              onChange={(e) => setCritical(e.target.value)}
+            />
+          )}
+        </Field>
+      </div>
+      <div>
+        <p className="mb-2 text-sm font-semibold text-ink">{t('settings.stations')}</p>
+        <ul className="flex flex-col divide-y divide-line">
+          {data.stations.length === 0 && (
+            <li className="py-2 text-sm text-muted">{t('settings.stationsEmpty')}</li>
+          )}
+          {data.stations.map((s) => (
+            <li key={s.id} className="flex items-center gap-3 py-2.5">
+              <span
+                className={
+                  s.isActive
+                    ? 'flex-1 text-sm font-medium text-ink'
+                    : 'flex-1 text-sm text-muted line-through'
+                }
+              >
+                {s.name}
+                <span className="ml-2 text-xs text-muted">
+                  {t(`settings.stationType.${s.type}`)}
+                </span>
+              </span>
+              <Switch
+                label={`${s.name}: ${t('settings.stationActive')}`}
+                checked={s.isActive}
+                disabled={disabled}
+                onChange={(isActive) =>
+                  station.mutate({ id: s.id, name: s.name, type: s.type, isActive })
+                }
+              />
+            </li>
+          ))}
+        </ul>
+        {!disabled && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Input
+              aria-label={t('settings.stationName')}
+              placeholder={t('settings.stationName')}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="min-w-40 flex-1"
+            />
+            <Select
+              aria-label={t('settings.stationTypeLabel')}
+              value={type}
+              onChange={(e) => setType(e.target.value as (typeof types)[number])}
+              className="w-36"
+            >
+              {types.map((tp) => (
+                <option key={tp} value={tp}>
+                  {t(`settings.stationType.${tp}`)}
+                </option>
+              ))}
+            </Select>
+            <Button
+              variant="secondary"
+              disabled={!name.trim()}
+              loading={station.isPending}
+              onClick={() => station.mutate({ name: name.trim(), type })}
+            >
+              {t('common.add')}
+            </Button>
+          </div>
+        )}
+      </div>
     </SectionForm>
   );
 }

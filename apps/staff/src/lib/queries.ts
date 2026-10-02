@@ -1,4 +1,4 @@
-import type { Floor, Menu, StaffOrderList, StaffSessionDetail } from '@qafe/contracts';
+import type { Floor, KdsView, Menu, StaffOrderList, StaffSessionDetail } from '@qafe/contracts';
 import { queryOptions } from '@tanstack/react-query';
 import { api } from './api';
 
@@ -29,3 +29,12 @@ export const menuQuery = queryOptions({
   queryFn: () => api<Menu>('/catalog/menu'),
   staleTime: 60_000,
 });
+
+/** KDS screen of one station (or all); realtime refetches it, polling covers a dropped socket. */
+export const kdsQuery = (station?: string) =>
+  queryOptions({
+    queryKey: ['kds', station ?? 'all'],
+    queryFn: () => api<KdsView>('/staff/kds', { query: { station } }),
+    staleTime: 2_000,
+    refetchInterval: 15_000,
+  });

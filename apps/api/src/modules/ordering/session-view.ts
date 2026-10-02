@@ -1,4 +1,5 @@
-import type { BillLine, GuestSessionState, SessionOrder, VerificationMode } from '@qafe/contracts';
+import type { BillLine, GuestSessionState, SessionOrder } from '@qafe/contracts';
+import type { OrderingSettings } from '../core/index.js';
 import type { Tx } from '@qafe/db';
 import { sql } from 'kysely';
 
@@ -206,7 +207,7 @@ export async function loadSessionState(
   trx: Tx,
   sessionId: string,
   myGuestId: string,
-  verificationMode: VerificationMode,
+  settings: Pick<OrderingSettings, 'verificationMode' | 'wifiVerificationEnabled'>,
 ): Promise<GuestSessionState> {
   const session = await trx
     .selectFrom('ordering.table_sessions')
@@ -257,7 +258,8 @@ export async function loadSessionState(
       tableLabel: session.table_label,
       status: session.status,
       verified: session.verified_at !== null,
-      verificationMode,
+      verificationMode: settings.verificationMode,
+      wifiVerification: settings.wifiVerificationEnabled,
       requestedPaymentMethod: session.requested_payment_method,
     },
     me,

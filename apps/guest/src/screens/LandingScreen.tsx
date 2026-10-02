@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { QrCode } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Header } from '../components/Header';
+import { Hero } from '../components/Hero';
 import { MenuView } from '../components/MenuView';
 import { menuQuery } from '../lib/queries';
 
@@ -14,6 +15,7 @@ export function LandingScreen({ venue }: { venue: GuestVenue }) {
     <div className="min-h-dvh bg-canvas">
       <Header venue={venue} />
       <main className="mx-auto max-w-2xl">
+        <Hero venue={venue} />
         <div className="m-4 flex gap-3 rounded-2xl border border-line bg-surface p-4">
           <QrCode className="size-6 shrink-0 text-accent" aria-hidden />
           <div>

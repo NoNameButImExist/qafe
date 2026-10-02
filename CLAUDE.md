@@ -181,6 +181,13 @@ is for typechecking only. Apps depend on them with `workspace:*`.
   `order_changes`, which the guest sees as "Izmijenjeno"), "Nije naše" confirm / cancel
   (`orders.disputes`, owner only by default), manual order for a table (opens a verified session,
   accepted at once, idempotent), push subscriptions. Shared writes are in `order-writes.ts`.
+- Wi-Fi table verification (FR-GOS-28): `core.venues.wifi_verification_enabled` + `core.venue_networks`
+  (cidr, RLS), managed in the panel (`/venue/network` returns the caller's IP, `/venue/networks`).
+  A guest whose IP is in a venue network gets a verified session (join, state, order); orders still
+  need waiter acceptance. Client IP comes from `trustProxy` limited to `TRUST_PROXY_HOPS` (default 1).
+- KDS (module `kds`): prep stations (`/venue/stations`), `catalog.items.prep_station_id` copied to
+  `order_items`; `GET /staff/kds`, item ready / undo (15 s), order start; all items ready → order
+  `ready` + `order.ready` event (waiter alert). Staff app `/kds` is a bare full-screen route.
 - `billing`: `POST /staff/sessions/:id/pay` pays the whole table (cash or card, only enabled
   methods) and closes it. Payment (billing schema) and session (ordering) are separate: payment
   `pending` → `SessionLedger.closeAfterPayment` (ordering's public interface) re-checks the bill
@@ -212,6 +219,9 @@ is for typechecking only. Apps depend on them with `workspace:*`.
 - Redis (`@qafe/redis`, `common/redis`): guest menu cache (`qafe:catalog:guest-menu:<venue>`,
   invalidated after every menu change, 5 min TTL), PIN attempts, Socket.IO fan-out. When Redis is
   down the menu comes from Postgres; `/health/ready` reports Redis.
+- Worker jobs (BullMQ, prefix `qafe:jobs`, `apps/worker/src/jobs.ts`): close abandoned sessions every
+  5 min (`ABANDON_AFTER_MINUTES`, only sessions without orders), nightly purge of old device
+  blocks, auth sessions and published outbox rows (`maintenance.ts`).
 - Worker relays `core`, `catalog`, `ordering` and `billing` outboxes. Guest order events are not
   audited; staff actions on sessions and orders, payments and "Nije naše" reports are. The worker
   also sends Web Push (`web-push`, VAPID keys from `pnpm keys:vapid`) to every staff device of the
@@ -257,7 +267,10 @@ is for typechecking only. Apps depend on them with `workspace:*`.
   browse. TanStack Query for data, i18next (bs/en; English for phones not set to bs/hr/sr), a small
   cart store in localStorage per host (survives refresh, keeps one idempotency key per cart).
 - `pnpm --filter @qafe/guest build` fails when the JavaScript is over 200 KB gzip (NFR-01,
-  `scripts/check-size.mjs`); currently about 122 KB. Service worker / offline PWA is not added yet.
+  `scripts/check-size.mjs`); currently about 170 KB.
+- Animations: `motion` with `LazyMotion strict` (`src/motion/`): only `m.*` components; the
+  features chunk loads after first paint. `BottomSheet` (drag to close, on `<dialog>`) replaces
+  the shared `Sheet` in the guest app; `burst()` fires the star burst. Service worker / offline PWA is not added yet.
 
 ## Staff app (apps/staff)
 
@@ -270,6 +283,8 @@ is for typechecking only. Apps depend on them with `workspace:*`.
 - Pages: tables (`/`, area filter), orders (`/orders`, live queue), table (`/table/$tableId`:
   verification and PIN, requests, devices, orders with all actions, bill, payment, close), menu
   availability (`/menu`). Actions follow the member's permissions (`useCan`).
+- Look: dark top bar with live indicator (`useLive`), sidebar on `lg`, floating bottom nav on
+  phones; `motion` (`LazyMotion` with `domMax`) for layout animations.
 - Realtime: the socket sends the access token on every (re)connect; `venue.changed` refetches and
   rings and vibrates (`navigator.vibrate`, Android only) for guest-caused changes. The guest app
   vibrates briefly when an order changes or the device is let in. Offline mode (NFR-05) is not
@@ -293,7 +308,14 @@ is for typechecking only. Apps depend on them with `workspace:*`.
 - Production (`make prod-pull prod-up` on a server, `docker-compose.prod.yml`): images from GHCR,
   HTTPS with a wildcard Let's Encrypt certificate (DNS challenge), restarts, no build. The release
   workflow publishes `qafe-<app>` images and `qafe-migrate` (when `packages/db` is released).
-- Not in Docker yet: observability (OTel collector, Grafana) and backups.
+- Profile `monitoring` (part of `make up`): otel-collector (OTLP 4318 → Prometheus exporter),
+  prometheus (also scrapes Traefik :8082), loki + alloy (container logs), grafana on
+  `grafana.DOMAIN` (router priority 200, above the `/api` router) with the provisioned
+  "qafe.ba – pregled" dashboard (`infra/monitoring/`). API and worker export metrics only when
+  `OTEL_EXPORTER_OTLP_ENDPOINT` is set (`@qafe/observability` `startTelemetry`).
+- `backup` service (`infra/docker/backup.Dockerfile`, `infra/backup/*.sh`): nightly encrypted
+  `pg_dump` to `s3://BACKUP_BUCKET/daily|weekly`, 7 + 4 kept; `make backup`,
+  `make backup-restore-test` (restores into `qafe_restore`). No PITR yet.
 
 ## Phases
 
@@ -311,7 +333,7 @@ is for typechecking only. Apps depend on them with `workspace:*`.
    and reports.
    Guest app done for MVP ordering (FR-GOS-01..04, 08..16, 20..27); staff app done for the MVP
    waiter flow (FR-KON-01, 02, 04..13, 15..19, 21, 22) with push; offline mode (NFR-05) missing.
-6. Full Docker: compose (observability, apps, tools), Traefik, prod compose, Makefile ← **done
-   except observability and backups**
+6. Full Docker: compose (observability, apps, tools), Traefik, prod compose, Makefile ← **done**
+   (monitoring and nightly backups since v0.5; point-in-time recovery missing)
 
-Not yet: KDS, offline staff app, observability and backups. Those follow `docs/requirements.md`.
+Not yet: offline staff app, admin monitoring screen, point-in-time recovery. Those follow `docs/requirements.md`.

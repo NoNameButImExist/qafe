@@ -2,6 +2,7 @@ import { Link, Outlet, useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Armchair,
+  Flame,
   ClipboardList,
   LoaderCircle,
   LogOut,
@@ -9,13 +10,14 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
+import { AnimatePresence, m } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChangePasswordForm, cn, LanguageSwitch, Notice, useNotice } from '@qafe/ui';
 import { NoticeContext } from '../lib/notice';
 import { tellServiceWorkerLanguage } from '../lib/push';
 import { floorQuery, ordersQuery } from '../lib/queries';
-import { connectRealtime } from '../lib/realtime';
+import { connectRealtime, useLive } from '../lib/realtime';
 import {
   readyConfirmed,
   setReadyConfirmed,
@@ -27,8 +29,18 @@ import { errorKey } from '../lib/api';
 import { useAuth, useCan, useStaff } from '../lib/useAuth';
 import { ReadyGate } from './ReadyGate';
 
-/** Protected area: waits for the session, sends anonymous visitors to /login. */
+/** Protected area with the app chrome. */
 export function ProtectedLayout() {
+  return <Protected>{() => <AppShell />}</Protected>;
+}
+
+/** Protected, full screen without navigation (KDS screen on the bar or kitchen). */
+export function ProtectedBare() {
+  return <Protected>{() => <Outlet />}</Protected>;
+}
+
+/** Waits for the session, sends anonymous visitors to /login. */
+function Protected({ children }: { children: () => React.ReactNode }) {
   const { state, changePassword, logout } = useAuth();
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -61,10 +73,13 @@ export function ProtectedLayout() {
       />
     );
   }
-  return <AppShell />;
+  return children();
 }
 
-/** Top bar, live connection, alerts and the bottom navigation (one-handed use, NFR-15). */
+/**
+ * App chrome: a dark top bar with the live connection, a side menu on wide screens and a
+ * floating bottom bar on phones (one-handed use, NFR-15).
+ */
 function AppShell() {
   const { t, i18n } = useTranslation();
   const staff = useStaff();
@@ -74,6 +89,7 @@ function AppShell() {
   // Asked once after sign-in; a reload keeps it and unlocks sound on the first tap.
   const [ready, setReady] = useState(readyConfirmed);
   const sound = useSoundEnabled();
+  const live = useLive();
   useEffect(() => {
     if (ready) unlockOnFirstInteraction();
   }, [ready]);
@@ -106,25 +122,52 @@ function AppShell() {
       show: canSeeOrders,
     },
     { to: '/menu' as const, icon: UtensilsCrossed, label: t('nav.menu'), badge: 0, show: canMenu },
+    {
+      to: '/kds' as const,
+      icon: Flame,
+      label: t('nav.kds'),
+      badge: 0,
+      show: staff.modules.includes('kds') && canSeeOrders,
+    },
   ].filter((n) => n.show);
+  const initials = staff.fullName
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
 
   return (
     <NoticeContext.Provider value={setNotice}>
-      <div className="min-h-dvh bg-canvas pb-24">
-        <header className="sticky top-0 z-20 border-b border-line bg-canvas/90 backdrop-blur">
-          <div className="mx-auto flex h-14 max-w-3xl items-center gap-3 px-4">
+      <div className="min-h-dvh bg-canvas pb-28 lg:pb-8 lg:pl-64">
+        <header className="sticky top-0 z-20 bg-navy-900 text-white shadow-lg shadow-navy-950/20">
+          <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 lg:px-8">
+            <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-primary to-blue-bright font-display text-sm font-bold">
+              {initials}
+            </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate font-display text-[15px] font-semibold text-ink">
-                {staff.venue.name}
+              <p className="truncate font-display text-[15px] font-semibold">{staff.venue.name}</p>
+              <p className="flex items-center gap-1.5 truncate text-xs text-white/65">
+                <span className="relative flex size-2" aria-hidden>
+                  {live && (
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-70" />
+                  )}
+                  <span
+                    className={cn(
+                      'relative inline-flex size-2 rounded-full',
+                      live ? 'bg-emerald-400' : 'bg-amber-400',
+                    )}
+                  />
+                </span>
+                {staff.fullName} · {live ? t('nav.live') : t('nav.offline')}
               </p>
-              <p className="truncate text-xs text-muted">{staff.fullName}</p>
             </div>
             <button
               type="button"
               onClick={() => void unlockSound().catch(() => undefined)}
               className={cn(
-                'grid size-11 place-items-center rounded-xl',
-                sound ? 'text-success' : 'bg-warning/12 text-warning',
+                'grid size-11 place-items-center rounded-xl transition-colors',
+                sound ? 'text-emerald-300 hover:bg-white/10' : 'bg-amber-400/20 text-amber-300',
               )}
               title={sound ? t('ready.soundOn') : t('ready.soundOff')}
               aria-label={sound ? t('ready.soundOn') : t('ready.soundOff')}
@@ -136,40 +179,101 @@ function AppShell() {
               type="button"
               onClick={() => void logout()}
               aria-label={t('nav.logout')}
-              className="grid size-11 place-items-center rounded-xl border border-line bg-surface text-muted hover:text-ink"
+              className="grid size-11 place-items-center rounded-xl text-white/70 hover:bg-white/10 hover:text-white"
             >
               <LogOut className="size-[18px]" />
             </button>
           </div>
         </header>
-        <div className="fixed inset-x-0 top-16 z-40 mx-auto max-w-3xl px-4">
+        <div className="fixed inset-x-0 top-[4.5rem] z-40 mx-auto max-w-3xl px-4 lg:pl-64">
           <div className={notice ? 'rounded-xl bg-surface shadow-lg' : undefined}>
             <Notice notice={notice} />
           </div>
         </div>
 
-        <main className="mx-auto max-w-3xl">
-          <Outlet />
-        </main>
-
+        {/* Wide screens: the menu on the left. */}
         <nav
           aria-label={t('nav.tables')}
-          className="pb-safe fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface/95 backdrop-blur"
+          className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-navy-950 px-4 py-5 text-white lg:flex"
         >
-          <div className="mx-auto flex max-w-3xl">
+          <p className="px-3 font-display text-xl font-bold tracking-tight">
+            qafe<span className="text-blue-bright">.</span>
+          </p>
+          <p className="mt-1 px-3 text-xs text-white/50">{t('login.badge')}</p>
+          <div className="mt-8 flex flex-col gap-1">
             {nav.map(({ to, icon: Icon, label, badge }) => (
               <Link
                 key={to}
                 to={to}
                 activeOptions={{ exact: to === '/' }}
-                className="relative flex h-16 flex-1 flex-col items-center justify-center gap-1 text-xs font-semibold text-muted data-[status=active]:text-accent"
+                className="group relative flex h-12 items-center gap-3 rounded-xl px-3 text-sm font-semibold text-white/65 transition-colors hover:text-white data-[status=active]:text-white"
               >
-                <Icon className="size-6" aria-hidden />
-                {label}
-                {badge > 0 && (
-                  <span className="absolute top-2 left-1/2 ml-2.5 grid min-w-5 place-items-center rounded-full bg-danger px-1 text-[11px] font-bold text-white">
-                    {badge}
-                  </span>
+                {({ isActive }) => (
+                  <>
+                    {isActive && (
+                      <m.span
+                        layoutId="side-nav"
+                        className="absolute inset-0 rounded-xl bg-white/10"
+                        transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+                      />
+                    )}
+                    <Icon className="relative size-5" aria-hidden />
+                    <span className="relative flex-1">{label}</span>
+                    {badge > 0 && (
+                      <span className="relative grid min-w-6 place-items-center rounded-full bg-danger px-1.5 py-0.5 text-[11px] font-bold">
+                        {badge}
+                      </span>
+                    )}
+                  </>
+                )}
+              </Link>
+            ))}
+          </div>
+        </nav>
+
+        <main className="mx-auto max-w-6xl lg:px-4">
+          <Outlet />
+        </main>
+
+        {/* Phones and tablets: a floating bar within thumb reach. */}
+        <nav
+          aria-label={t('nav.tables')}
+          className="pb-safe fixed inset-x-0 bottom-0 z-20 px-3 lg:hidden"
+        >
+          <div className="mx-auto mb-3 flex max-w-md rounded-[22px] border border-white/10 bg-navy-900/95 p-1.5 shadow-2xl shadow-navy-950/40 backdrop-blur">
+            {nav.map(({ to, icon: Icon, label, badge }) => (
+              <Link
+                key={to}
+                to={to}
+                activeOptions={{ exact: to === '/' }}
+                className="relative flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold text-white/55 data-[status=active]:text-white"
+              >
+                {({ isActive }) => (
+                  <>
+                    {isActive && (
+                      <m.span
+                        layoutId="bottom-nav"
+                        className="absolute inset-0 rounded-2xl bg-gradient-to-b from-primary to-blue-brand"
+                        transition={{ type: 'spring', stiffness: 500, damping: 38 }}
+                      />
+                    )}
+                    <Icon className="relative size-[22px]" aria-hidden />
+                    <span className="relative">{label}</span>
+                    <AnimatePresence>
+                      {badge > 0 && (
+                        <m.span
+                          key={badge}
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          exit={{ scale: 0 }}
+                          transition={{ type: 'spring', stiffness: 600, damping: 18 }}
+                          className="absolute top-1 left-1/2 ml-2 grid min-w-5 place-items-center rounded-full bg-danger px-1 text-[11px] font-bold text-white ring-2 ring-navy-900"
+                        >
+                          {badge}
+                        </m.span>
+                      )}
+                    </AnimatePresence>
+                  </>
                 )}
               </Link>
             ))}

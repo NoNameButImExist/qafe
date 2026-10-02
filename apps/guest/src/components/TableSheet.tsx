@@ -1,11 +1,12 @@
 import type { GuestSessionState } from '@qafe/contracts';
-import { Button, ConfirmDialog, Input, Sheet } from '@qafe/ui';
+import { Button, ConfirmDialog, Input } from '@qafe/ui';
 import { Crown } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { resubscribe } from '../lib/realtime';
 import { useSessionAction } from '../lib/useAction';
+import { BottomSheet } from '../motion/BottomSheet';
 
 /** Nickname, the devices at the table, host actions and leaving (FR-GOS-20, 22..24). */
 export function TableSheet({
@@ -36,7 +37,7 @@ export function TableSheet({
   });
 
   return (
-    <Sheet
+    <BottomSheet
       open={open}
       onClose={onClose}
       title={t('table.title', { label: state.session.tableLabel })}
@@ -139,6 +140,6 @@ export function TableSheet({
         onClose={() => setLeaving(false)}
         onConfirm={() => leave.mutate(undefined, { onSettled: () => setLeaving(false) })}
       />
-    </Sheet>
+    </BottomSheet>
   );
 }

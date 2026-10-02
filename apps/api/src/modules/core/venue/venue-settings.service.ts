@@ -1,8 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import type { StaffClaims } from '@qafe/auth';
-import type { UpdateVenueSettingsInput, VenueSettings } from '@qafe/contracts';
+import {
+  ErrorCode,
+  type SaveStationInput,
+  type UpdateVenueSettingsInput,
+  type VenueSettings,
+} from '@qafe/contracts';
 import type { Tx } from '@qafe/db';
-import { notFound } from '../../../common/errors.js';
+import { sql } from 'kysely';
+import { ApiException, notFound } from '../../../common/errors.js';
 import { CoreDatabase } from '../core.database.js';
 import { publish } from '../outbox.js';
 
@@ -42,8 +48,11 @@ export class VenueSettingsService {
         guest_ordering_enabled: input.ordering?.guestOrderingEnabled,
         session_verification_mode: input.ordering?.sessionVerificationMode,
         device_approval_required: input.ordering?.deviceApprovalRequired,
+        wifi_verification_enabled: input.ordering?.wifiVerificationEnabled,
         order_rejection_enabled: input.ordering?.orderRejectionEnabled,
         vat_rate: input.vatRate === undefined ? undefined : decimal(input.vatRate),
+        kds_warning_minutes: input.kds?.warningMinutes,
+        kds_critical_minutes: input.kds?.criticalMinutes,
       } as const;
 
       const before: Record<string, unknown> = {};
@@ -194,13 +203,156 @@ export class VenueSettingsService {
         guestOrderingEnabled: v.guest_ordering_enabled,
         sessionVerificationMode: v.session_verification_mode,
         deviceApprovalRequired: v.device_approval_required,
+        wifiVerificationEnabled: v.wifi_verification_enabled,
         orderRejectionEnabled: v.order_rejection_enabled,
       },
       vatRate: v.vat_rate,
       payments: await this.payments(trx, venueId),
       modules: modules.map((m) => m.module_code),
       openingHours: await this.openingHours(trx),
+      networks: await this.networks(trx),
+      stations: await this.stations(trx),
+      kds: { warningMinutes: v.kds_warning_minutes, criticalMinutes: v.kds_critical_minutes },
     };
+  }
+
+  /** FR-GOS-28: adds a network (the caller's own address when none is given). */
+  async addNetwork(
+    claims: StaffClaims,
+    network: string,
+    label: string | undefined,
+  ): Promise<VenueSettings> {
+    return this.db.withTenant(venueContext(claims.venueId), async (trx) => {
+      const current = await trx
+        .selectFrom('core.venues')
+        .select('name')
+        .where('id', '=', claims.venueId)
+        .executeTakeFirstOrThrow();
+      // inet → cidr zeroes host bits, so "10.0.0.5/24" is stored as 10.0.0.0/24.
+      const valid = await sql<{ ok: boolean }>`
+        select ${network}::text ~ '^[0-9a-fA-F:./]+$' and pg_input_is_valid(${network}, 'inet') as ok
+      `.execute(trx);
+      if (!valid.rows[0]?.ok) {
+        throw new ApiException(
+          HttpStatus.BAD_REQUEST,
+          ErrorCode.validationFailed,
+          'Invalid network',
+        );
+      }
+      const added = await trx
+        .insertInto('core.venue_networks')
+        .values({
+          venue_id: claims.venueId,
+          network: sql<string>`cidr(${network}::inet)`,
+          label: label ?? null,
+        })
+        .onConflict((oc) => oc.columns(['venue_id', 'network']).doNothing())
+        .returning('network')
+        .executeTakeFirst();
+      if (added) {
+        await publish(trx, {
+          type: 'venue.updated',
+          venueId: claims.venueId,
+          venueName: current.name,
+          before: {},
+          after: { network_added: added.network },
+          actor: { id: claims.userId, label: claims.name },
+        });
+      }
+      return this.load(trx, claims.venueId);
+    });
+  }
+
+  async removeNetwork(claims: StaffClaims, id: string): Promise<VenueSettings> {
+    return this.db.withTenant(venueContext(claims.venueId), async (trx) => {
+      const current = await trx
+        .selectFrom('core.venues')
+        .select('name')
+        .where('id', '=', claims.venueId)
+        .executeTakeFirstOrThrow();
+      const removed = await trx
+        .deleteFrom('core.venue_networks')
+        .where('id', '=', id)
+        .returning('network')
+        .executeTakeFirst();
+      if (!removed) throw notFound('Network not found');
+      await publish(trx, {
+        type: 'venue.updated',
+        venueId: claims.venueId,
+        venueName: current.name,
+        before: { network_removed: removed.network },
+        after: {},
+        actor: { id: claims.userId, label: claims.name },
+      });
+      return this.load(trx, claims.venueId);
+    });
+  }
+
+  /** FR-SEF-12: preparation stations for the KDS module. */
+  async saveStation(
+    claims: StaffClaims,
+    id: string | null,
+    input: SaveStationInput,
+  ): Promise<VenueSettings> {
+    return this.db.withTenant(venueContext(claims.venueId), async (trx) => {
+      const venue = await trx
+        .selectFrom('core.venues')
+        .select('name')
+        .where('id', '=', claims.venueId)
+        .executeTakeFirstOrThrow();
+      const taken = await trx
+        .selectFrom('core.prep_stations')
+        .select('id')
+        .where('name', '=', input.name)
+        .$if(id !== null, (q) => q.where('id', '!=', id!))
+        .executeTakeFirst();
+      if (taken) throw new ApiException(HttpStatus.CONFLICT, ErrorCode.labelTaken, 'Name taken');
+      if (id) {
+        const updated = await trx
+          .updateTable('core.prep_stations')
+          .set({
+            name: input.name,
+            type: input.type,
+            ...(input.isActive === undefined ? {} : { is_active: input.isActive }),
+          })
+          .where('id', '=', id)
+          .returning('id')
+          .executeTakeFirst();
+        if (!updated) throw notFound('Station not found');
+      } else {
+        await trx
+          .insertInto('core.prep_stations')
+          .values({ venue_id: claims.venueId, name: input.name, type: input.type })
+          .execute();
+      }
+      await publish(trx, {
+        type: 'venue.updated',
+        venueId: claims.venueId,
+        venueName: venue.name,
+        before: {},
+        after: { station: input.name },
+        actor: { id: claims.userId, label: claims.name },
+      });
+      return this.load(trx, claims.venueId);
+    });
+  }
+
+  private async stations(trx: Tx): Promise<VenueSettings['stations']> {
+    const rows = await trx
+      .selectFrom('core.prep_stations')
+      .select(['id', 'name', 'type', 'is_active'])
+      .orderBy('name')
+      .execute();
+    return rows.map((r) => ({ id: r.id, name: r.name, type: r.type, isActive: r.is_active }));
+  }
+
+  private async networks(trx: Tx): Promise<VenueSettings['networks']> {
+    const rows = await trx
+      .selectFrom('core.venue_networks')
+      .select(['id', 'network', 'label'])
+      .orderBy('created_at')
+      .execute();
+    return rows.map((r) => ({ id: r.id, network: displayNetwork(r.network), label: r.label }));
   }
 
   private async openingHours(trx: Tx): Promise<VenueSettings['openingHours']> {
@@ -231,4 +383,9 @@ export class VenueSettingsService {
       default: def === 'card' ? 'card' : 'cash',
     };
   }
+}
+
+/** "203.0.113.7/32" reads better as "203.0.113.7"; ranges keep their prefix. */
+function displayNetwork(network: string): string {
+  return network.replace(/\/(32|128)$/, '');
 }

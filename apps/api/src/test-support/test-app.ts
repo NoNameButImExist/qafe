@@ -57,6 +57,7 @@ export async function testConfig(
       mfaEncryptionKey: Buffer.alloc(32, 7).toString('base64'),
     },
     corsOrigins: [],
+    trustProxyHops: 1,
     guestUrlTemplate: 'https://{slug}.qafe.test/t/{token}',
     guest: { domain: 'qafe.test', deviceSecret: 'test-device-secret', cookieSecure: true },
     push: { vapidPublicKey: 'test-vapid-public-key' },

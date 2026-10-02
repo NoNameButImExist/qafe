@@ -1,5 +1,6 @@
 import { createRootRoute, createRoute, createRouter, Outlet } from '@tanstack/react-router';
-import { ProtectedLayout } from './components/AppShell';
+import { ProtectedBare, ProtectedLayout } from './components/AppShell';
+import { KdsPage } from './pages/KdsPage';
 import { FloorPage } from './pages/FloorPage';
 import { LoginPage } from './pages/LoginPage';
 import { MenuPage } from './pages/MenuPage';
@@ -43,8 +44,17 @@ export const tableRoute = createRoute({
   component: TablePage,
 });
 
+/** Full screen without navigation, for the bar or kitchen screen. */
+const bareRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: 'bare',
+  component: ProtectedBare,
+});
+const kdsRoute = createRoute({ getParentRoute: () => bareRoute, path: '/kds', component: KdsPage });
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
+  bareRoute.addChildren([kdsRoute]),
   appRoute.addChildren([floorRoute, ordersRoute, menuRoute, tableRoute]),
 ]);
 

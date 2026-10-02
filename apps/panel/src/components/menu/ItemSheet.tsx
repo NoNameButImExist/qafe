@@ -1,9 +1,11 @@
 import { CreateItemRequest, type Menu, type MenuItem, type UploadedImage } from '@qafe/contracts';
+import { useQuery } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Field, Input, Select, Sheet, Switch, Textarea, cn } from '@qafe/ui';
 import { api, errorKey } from '../../lib/api';
 import { formatDelta } from '../../lib/format';
+import { settingsQuery } from '../../lib/queries';
 import { useStaff } from '../../lib/useAuth';
 import { ImageInput } from '../ImageInput';
 import { useMenuMutation } from './useMenuMutation';
@@ -21,7 +23,9 @@ interface ItemSheetProps {
 /** FR-SEF-17..19: name, description, image, price, quantity, modifiers and availability. */
 export function ItemSheet({ open, menu, item, categoryId, onClose, onSaved }: ItemSheetProps) {
   const { t, i18n } = useTranslation();
-  const { venue } = useStaff();
+  const { venue, modules } = useStaff();
+  const kds = modules.includes('kds');
+  const settings = useQuery({ ...settingsQuery, enabled: kds });
   const [form, setForm] = useState({
     categoryId: item?.categoryId ?? categoryId,
     name: item?.name ?? '',
@@ -31,8 +35,12 @@ export function ItemSheet({ open, menu, item, categoryId, onClose, onSaved }: It
     imageUrl: item?.imageUrl ?? null,
     isAvailable: item?.isAvailable ?? true,
     modifierGroupIds: item?.modifierGroupIds ?? [],
+    prepStationId: item?.prepStationId ?? null,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const stations = (settings.data?.stations ?? []).filter(
+    (s) => s.isActive || s.id === form.prepStationId,
+  );
 
   const save = useMenuMutation((body: CreateItemRequest) =>
     item
@@ -232,6 +240,26 @@ export function ItemSheet({ open, menu, item, categoryId, onClose, onSaved }: It
             </ul>
           )}
         </fieldset>
+
+        {kds && (
+          <Field label={t('menu.item.station')} hint={t('menu.item.stationHint')}>
+            {({ id, describedBy }) => (
+              <Select
+                id={id}
+                aria-describedby={describedBy}
+                value={form.prepStationId ?? ''}
+                onChange={(e) => set('prepStationId', e.target.value || null)}
+              >
+                <option value="">{t('menu.item.noStation')}</option>
+                {stations.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+        )}
 
         <div className="flex items-center justify-between gap-4 rounded-xl border border-line px-4 py-3">
           <span className="text-sm font-semibold text-ink">{t('menu.item.availableNow')}</span>

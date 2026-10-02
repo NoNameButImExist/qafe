@@ -6,6 +6,8 @@ import { App } from './App';
 import './i18n';
 import { ApiError } from './lib/api';
 import { connectRealtime } from './lib/realtime';
+import { Bursts } from './motion/Bursts';
+import { MotionRoot } from './motion/MotionRoot';
 import './styles.css';
 
 applyTheme();
@@ -27,7 +29,10 @@ if (!root) throw new Error('Missing #root element');
 createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <MotionRoot>
+        <App />
+        <Bursts />
+      </MotionRoot>
     </QueryClientProvider>
   </StrictMode>,
 );

@@ -28,6 +28,10 @@
   "dependencies": {
     "@qafe/contracts": "workspace:*",
     "@qafe/db": "workspace:*",
+    "@qafe/observability": "workspace:*",
+    "@qafe/redis": "workspace:*",
+    "bullmq": "^6.3.11",
+    "ioredis": "^6.0.0",
     "kysely": "^0.29.6",
     "web-push": "^3.6.7",
     "zod": "^4.6.5"

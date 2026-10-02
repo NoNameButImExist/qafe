@@ -143,6 +143,7 @@ CREATE TABLE core.venues (
   guest_ordering_enabled    boolean      NOT NULL DEFAULT true,
   session_verification_mode app.verification_mode NOT NULL DEFAULT 'waiter', -- FR-GOS-21
   device_approval_required  boolean      NOT NULL DEFAULT true,              -- FR-GOS-22
+  wifi_verification_enabled boolean      NOT NULL DEFAULT false,             -- FR-GOS-28 (migracija 20261002090000)
   order_rejection_enabled   boolean      NOT NULL DEFAULT false,             -- FR-SEF-04
   shifts_enabled            boolean      NOT NULL DEFAULT false,             -- FR-SEF-06
   zone_assignment_enabled   boolean      NOT NULL DEFAULT false,             -- FR-SEF-13
@@ -155,6 +156,16 @@ CREATE TABLE core.venues (
   updated_at                timestamptz  NOT NULL DEFAULT now(),
   deleted_at                timestamptz,
   CHECK (kds_critical_minutes > kds_warning_minutes)
+);
+
+-- Mreže lokala za Wi-Fi potvrdu stola (FR-GOS-28): javna IP adresa ili opseg.
+CREATE TABLE core.venue_networks (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id   uuid        NOT NULL REFERENCES core.venues(id) ON DELETE CASCADE,
+  network    cidr        NOT NULL,
+  label      varchar(60),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (venue_id, network)
 );
 
 -- Katalog modula koje admin može uključiti (FR-ADM-06)
@@ -857,7 +868,7 @@ DO $$
 DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
-    'core.venue_modules','core.venue_payment_methods','core.venue_opening_hours',
+    'core.venue_modules','core.venue_payment_methods','core.venue_opening_hours','core.venue_networks',
     'core.venue_roles','core.venue_members','core.shifts','core.areas','core.tables',
     'core.member_area_assignments','core.prep_stations',
     'catalog.menus','catalog.menu_schedules','catalog.categories','catalog.category_translations',

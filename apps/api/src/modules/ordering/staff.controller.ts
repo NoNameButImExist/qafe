@@ -14,6 +14,7 @@ import {
 import {
   AddItemsRequest,
   DayOrdersQuery,
+  KdsQuery,
   ManualOrderRequest,
   PushSubscriptionRequest,
   PushUnsubscribeRequest,
@@ -27,6 +28,7 @@ import {
   StaffMessageRequest,
   type AddItemsInput,
   type DayOrderList,
+  type KdsView,
   type Floor,
   type PlaceOrderInput,
   type PushConfig,
@@ -44,6 +46,7 @@ import {
   type StaffClaims,
 } from '../../common/auth/auth.guard.js';
 import { ZodPipe } from '../../common/zod.pipe.js';
+import { KdsService } from './kds.service.js';
 import { PushService } from './push.service.js';
 import { StaffOrdersService } from './staff-orders.service.js';
 import { StaffSessionsService } from './staff-sessions.service.js';
@@ -58,6 +61,7 @@ export class StaffController {
     private readonly sessions: StaffSessionsService,
     private readonly orders: StaffOrdersService,
     private readonly push: PushService,
+    private readonly kdsService: KdsService,
   ) {}
 
   // ---------- Tables and sessions ----------
@@ -273,6 +277,42 @@ export class StaffController {
     @Body(new ZodPipe(ResolveDisputeRequest)) body: ResolveDisputeRequest,
   ): Promise<void> {
     return this.orders.resolveDispute(staff, id, body.action);
+  }
+
+  // ---------- Kitchen and bar screens (KDS module) ----------
+
+  @Get('kds')
+  @RequirePermission('orders.view')
+  kds(
+    @CurrentStaff() staff: StaffClaims,
+    @Query(new ZodPipe(KdsQuery)) query: KdsQuery,
+  ): Promise<KdsView> {
+    return this.kdsService.view(staff, query.station);
+  }
+
+  @Post('kds/items/:id/ready')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @RequirePermission('orders.update')
+  kdsReady(@CurrentStaff() staff: StaffClaims, @Param('id', uuid) id: string): Promise<void> {
+    return this.kdsService.ready(staff, id);
+  }
+
+  @Post('kds/items/:id/undo')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @RequirePermission('orders.update')
+  kdsUndo(@CurrentStaff() staff: StaffClaims, @Param('id', uuid) id: string): Promise<void> {
+    return this.kdsService.undo(staff, id);
+  }
+
+  @Post('kds/orders/:id/start')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @RequirePermission('orders.update')
+  kdsStart(
+    @CurrentStaff() staff: StaffClaims,
+    @Param('id', uuid) id: string,
+    @Query(new ZodPipe(KdsQuery)) query: KdsQuery,
+  ): Promise<void> {
+    return this.kdsService.start(staff, id, query.station);
   }
 
   // ---------- Web Push ----------

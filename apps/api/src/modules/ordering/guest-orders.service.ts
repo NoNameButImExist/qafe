@@ -213,7 +213,7 @@ export class GuestOrdersService {
           ...guestActor(me.guestId, me.nickname, me.tableLabel),
         });
       }
-      return loadSessionState(trx, me.sessionId, me.guestId, settings.verificationMode);
+      return loadSessionState(trx, me.sessionId, me.guestId, settings);
     });
     this.realtime.sessionChanged(ctx.venue.venueId, state.session.id, 'order.disputed');
     return state;
@@ -295,7 +295,7 @@ export class GuestOrdersService {
           ...guestActor(me.guestId, me.nickname, me.tableLabel),
         });
       }
-      return loadSessionState(trx, me.sessionId, me.guestId, settings.verificationMode);
+      return loadSessionState(trx, me.sessionId, me.guestId, settings);
     });
     this.realtime.sessionChanged(ctx.venue.venueId, state.session.id, body.type);
     return state;
@@ -371,7 +371,7 @@ export class GuestOrdersService {
         ...(total ? { total } : {}),
         ...guestActor(me.guestId, me.nickname, me.tableLabel),
       });
-      return loadSessionState(trx, me.sessionId, me.guestId, settings.verificationMode);
+      return loadSessionState(trx, me.sessionId, me.guestId, settings);
     });
     this.realtime.sessionChanged(ctx.venue.venueId, state.session.id, eventType);
     return state;
@@ -387,6 +387,9 @@ export class GuestOrdersService {
     if (me.status !== 'approved') throw approvalRequired();
     if (me.sessionStatus !== 'open' && me.sessionStatus !== 'bill_requested') {
       throw fail(HttpStatus.CONFLICT, ErrorCode.invalidState, 'The table session is closed');
+    }
+    if (!me.verified && (await this.sessions.confirmOnVenueNetwork(trx, ctx, settings, me))) {
+      me.verified = true;
     }
     if (settings.verificationMode === 'pin' && !me.verified) {
       throw fail(

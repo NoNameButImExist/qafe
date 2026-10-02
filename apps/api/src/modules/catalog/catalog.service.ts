@@ -14,6 +14,7 @@ import type { Tx } from '@qafe/db';
 import { ApiException, notFound } from '../../common/errors.js';
 import { CatalogDatabase } from './catalog.database.js';
 import { MenuCache } from './menu-cache.js';
+import { VenueDirectory } from '../core/index.js';
 
 /** Normalises "2", "2,5" or "2.50" to "2.50". */
 const money = (value: string) => Number(value.replace(',', '.')).toFixed(2);
@@ -35,6 +36,7 @@ export class CatalogService {
   constructor(
     private readonly db: CatalogDatabase,
     private readonly cache: MenuCache,
+    private readonly venues: VenueDirectory,
   ) {}
 
   getMenu(venueId: string): Promise<Menu> {
@@ -158,6 +160,7 @@ export class CatalogService {
   createItem(venueId: string, actor: Actor, input: CreateItemInput): Promise<Menu> {
     return this.change(venueId, async (trx) => {
       await this.requireCategory(trx, input.categoryId);
+      await this.requireStation(venueId, input.prepStationId);
       const { max } = await trx
         .selectFrom('catalog.items')
         .select((eb) => eb.fn.max('sort_order').as('max'))
@@ -174,6 +177,7 @@ export class CatalogService {
           volume_label: input.volumeLabel ?? null,
           image_url: input.imageUrl ?? null,
           is_available: input.isAvailable ?? true,
+          prep_station_id: input.prepStationId ?? null,
           sort_order: (max ?? 0) + 1,
         })
         .returning(['id', 'name', 'price'])
@@ -196,6 +200,7 @@ export class CatalogService {
     return this.change(venueId, async (trx) => {
       const current = await this.requireItem(trx, id);
       if (input.categoryId) await this.requireCategory(trx, input.categoryId);
+      await this.requireStation(venueId, input.prepStationId);
       const { before, after, changes } = diff(current, {
         name: input.name,
         description: input.description,
@@ -204,6 +209,7 @@ export class CatalogService {
         image_url: input.imageUrl,
         is_available: input.isAvailable,
         category_id: input.categoryId,
+        prep_station_id: input.prepStationId,
       });
       if (changes)
         await trx.updateTable('catalog.items').set(changes).where('id', '=', id).execute();
@@ -429,6 +435,16 @@ export class CatalogService {
     if (!found) throw notFound('Category not found');
   }
 
+  /** A station must be one of the venue's own (no FK across schemas, so core checks it). */
+  private async requireStation(
+    venueId: string,
+    stationId: string | null | undefined,
+  ): Promise<void> {
+    if (!stationId) return;
+    const { stations } = await this.venues.kdsSettings(venueId);
+    if (!stations.some((s) => s.id === stationId)) throw notFound('Station not found');
+  }
+
   private async requireItem(trx: Tx, id: string) {
     const item = await trx
       .selectFrom('catalog.items')
@@ -440,6 +456,7 @@ export class CatalogService {
         'image_url',
         'is_available',
         'category_id',
+        'prep_station_id',
       ])
       .where('id', '=', id)
       .where('deleted_at', 'is', null)
@@ -517,6 +534,7 @@ export class CatalogService {
         'image_url',
         'is_available',
         'sort_order',
+        'prep_station_id',
       ])
       .where('venue_id', '=', venueId)
       .where('deleted_at', 'is', null)
@@ -562,6 +580,7 @@ export class CatalogService {
             isAvailable: i.is_available,
             sortOrder: i.sort_order,
             modifierGroupIds: links.filter((l) => l.item_id === i.id).map((l) => l.group_id),
+            prepStationId: i.prep_station_id,
           })),
       })),
       modifierGroups: groups.map((g) => ({

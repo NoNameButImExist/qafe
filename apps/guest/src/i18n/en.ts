@@ -35,6 +35,13 @@ const en: Messages = {
     elsewhereBody: 'This phone is already at table {{label}}. Leave it and move to this table?',
     elsewhereConfirm: 'Move to this table',
   },
+  hero: {
+    morning: 'Good morning',
+    day: 'Good afternoon',
+    evening: 'Good evening',
+    atTable: 'Table {{label}} · pick what you like, the order goes straight to the staff.',
+    browse: 'Have a look at what we offer.',
+  },
   tabs: { menu: 'Menu', orders: 'Orders', bill: 'Bill' },
   menu: {
     empty: 'The menu is not published yet.',
@@ -148,6 +155,7 @@ const en: Messages = {
     pendingOthers_other: '{{count}} new devices want to order at this table.',
     review: 'Review',
     unverifiedWaiter: 'The waiter confirms the first order at the table.',
+    wifi: 'Join the venue Wi-Fi and the table is confirmed at once, without waiting for the waiter.',
     havePin: 'Did the waiter give you a PIN? Enter it here.',
     pinTitle: 'Enter the table PIN',
     pinBody: 'The waiter will tell you the four-digit PIN.',

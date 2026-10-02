@@ -22,6 +22,19 @@ const TONES: Record<StaffOrder['status'], string> = {
   withdrawn: 'bg-surface-2 text-muted',
 };
 
+/** Colour of the stripe on the card's left edge. */
+const STRIPES: Record<StaffOrder['status'], string> = {
+  new: 'bg-danger',
+  returned: 'bg-warning',
+  accepted: 'bg-primary',
+  preparing: 'bg-primary',
+  ready: 'bg-success',
+  served: 'bg-line-strong',
+  cancelled: 'bg-line',
+  rejected: 'bg-line',
+  withdrawn: 'bg-line',
+};
+
 const CHANGEABLE = ['new', 'accepted', 'preparing', 'ready'];
 const LIVE_ITEM = ['pending', 'preparing', 'ready', 'served'];
 
@@ -95,42 +108,45 @@ export function OrderCard({
   return (
     <article
       className={cn(
-        'rounded-2xl border bg-surface p-4',
-        order.status === 'new'
-          ? 'border-danger/40 shadow-[0_0_0_3px] shadow-danger/10'
-          : 'border-line',
+        'relative overflow-hidden rounded-[22px] border bg-surface p-4 pl-5 shadow-card',
+        order.status === 'new' ? 'border-danger/35 shadow-lg shadow-danger/10' : 'border-line',
       )}
     >
+      <span className={cn('absolute inset-y-0 left-0 w-1.5', STRIPES[order.status])} aria-hidden />
       <header className="flex items-start gap-3">
+        {showTable && (
+          <Link
+            to="/table/$tableId"
+            params={{ tableId: order.tableId }}
+            aria-label={t('orders.table', { label: order.tableLabel })}
+            className="grid min-w-12 shrink-0 place-items-center rounded-2xl bg-navy-900 px-2 py-1.5 text-white transition-transform active:scale-95"
+          >
+            <span className="text-[9px] font-semibold tracking-wider text-white/60 uppercase">
+              {t('orders.tableShort')}
+            </span>
+            <span className="font-display text-lg leading-tight font-bold">{order.tableLabel}</span>
+          </Link>
+        )}
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-x-2">
-            {showTable ? (
-              <Link
-                to="/table/$tableId"
-                params={{ tableId: order.tableId }}
-                className="font-display text-lg font-bold text-ink underline-offset-2 hover:underline"
-              >
-                {t('orders.table', { label: order.tableLabel })}
-              </Link>
-            ) : null}
-            <span className="font-semibold text-ink">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="font-display text-base font-semibold text-ink">
               {t('orders.number', { number: order.number })}
             </span>
             <span
               className={cn(
-                'text-xs font-medium',
+                'rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums',
                 order.status === 'new' && waiting >= 10
-                  ? 'font-bold text-danger'
+                  ? 'bg-danger text-white'
                   : order.status === 'new' && waiting >= 5
-                    ? 'font-bold text-warning'
-                    : 'text-muted',
+                    ? 'bg-warning/15 text-warning'
+                    : 'bg-surface-2 text-muted',
               )}
             >
               {formatTime(order.createdAt)} ·{' '}
               {waiting > 0 ? t('common.minutesAgo', { count: waiting }) : t('common.justNow')}
             </span>
           </div>
-          <p className="text-xs text-muted">
+          <p className="mt-0.5 text-xs text-muted">
             {order.orderedBy ? t('orders.by', { name: order.orderedBy }) : t('orders.byStaff')}
           </p>
         </div>
