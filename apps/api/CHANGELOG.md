@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.6.0](https://github.com/NoNameButImExist/qafe/compare/api-v0.5.0...api-v0.6.0) (2026-10-02)
+
+
+### Features
+
+* dodana grafana za tracking latencije, sank i kuhinja, zatvaranj… ([7d53e62](https://github.com/NoNameButImExist/qafe/commit/7d53e62d10720122fa4295d586020d44f2db474a))
+* dodana grafana za tracking latencije, sank i kuhinja, zatvaranje stolova bez narudbi ([9233a5c](https://github.com/NoNameButImExist/qafe/commit/9233a5cf164bbccc296f7f7ca3a30ec84de6bf6b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @qafe/contracts bumped to 0.6.0
+    * @qafe/db bumped to 0.3.0
+    * @qafe/observability bumped to 0.3.0
+
 ## [0.5.0](https://github.com/NoNameButImExist/qafe/compare/api-v0.4.0...api-v0.5.0) (2026-10-02)
 
 

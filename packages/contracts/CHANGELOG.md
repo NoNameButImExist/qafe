@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.0](https://github.com/NoNameButImExist/qafe/compare/contracts-v0.5.0...contracts-v0.6.0) (2026-10-02)
+
+
+### Features
+
+* dodana grafana za tracking latencije, sank i kuhinja, zatvaranj… ([7d53e62](https://github.com/NoNameButImExist/qafe/commit/7d53e62d10720122fa4295d586020d44f2db474a))
+* dodana grafana za tracking latencije, sank i kuhinja, zatvaranje stolova bez narudbi ([9233a5c](https://github.com/NoNameButImExist/qafe/commit/9233a5cf164bbccc296f7f7ca3a30ec84de6bf6b))
+
 ## [0.5.0](https://github.com/NoNameButImExist/qafe/compare/contracts-v0.4.0...contracts-v0.5.0) (2026-10-02)
 
 
