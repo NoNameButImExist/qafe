@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/NoNameButImExist/qafe/compare/web-v0.3.0...web-v0.4.0) (2026-10-03)
+
+
+### Features
+
+* redizajn pocetne stranice ([607a067](https://github.com/NoNameButImExist/qafe/commit/607a06702d909bd003ffefc246b2af1c89ca1528))
+* redizajn pocetne stranice ([521753b](https://github.com/NoNameButImExist/qafe/commit/521753b5cee00fe2bffffd25b5f34ce4ef62679f))
+
 ## [0.3.0](https://github.com/NoNameButImExist/qafe/compare/web-v0.2.0...web-v0.3.0) (2026-10-01)
 
 
