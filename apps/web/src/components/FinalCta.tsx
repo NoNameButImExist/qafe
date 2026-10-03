@@ -43,7 +43,7 @@ function AssemblingQr() {
             transition={{ delay: 1.1 + i * 0.1, type: 'spring', stiffness: 300, damping: 14 }}
             style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
           >
-            <QrFinder x={x} y={y} hole="var(--color-print)" eye="var(--color-primary)" />
+            <QrFinder x={x} y={y} hole="var(--color-print)" eye="var(--color-on-print)" />
           </motion.g>
         ))}
       </svg>
@@ -63,12 +63,12 @@ export function FinalCta() {
   const mailto = `mailto:${config.contactEmail}?subject=${encodeURIComponent(t.cta.mailSubject)}`;
 
   return (
-    <section id="kontakt" className="px-3 pb-6 sm:px-6">
-      <div className="relative isolate mx-auto max-w-7xl overflow-hidden rounded-[2.5rem] bg-linear-to-br from-navy-soft via-navy to-navy-deep px-6 py-16 text-on-navy ring-1 ring-line-strong sm:px-12 sm:py-24 lg:px-16">
+    <section id="kontakt" className="theme-sand px-3 pb-6 sm:px-6">
+      <div className="theme-teal relative isolate mx-auto max-w-7xl overflow-hidden rounded-[2.5rem] bg-linear-to-br from-navy-soft via-navy to-navy-deep px-6 py-16 text-on-navy ring-1 ring-line-strong sm:px-12 sm:py-24 lg:px-16">
         <div aria-hidden className="bg-dots-navy absolute inset-0 -z-10 opacity-70" />
         <div
           aria-hidden
-          className="absolute bottom-[-30%] left-[-10%] -z-10 size-[600px] rounded-full bg-primary/35 blur-[140px]"
+          className="absolute bottom-[-30%] left-[-10%] -z-10 size-[600px] rounded-full bg-bright/20 blur-[140px]"
         />
         <div className="grid items-center gap-14 lg:grid-cols-[1.2fr_1fr]">
           <div>
