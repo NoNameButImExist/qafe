@@ -66,12 +66,6 @@ export const UsersIcon = (p: IconProps) => (
     <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
   </Icon>
 );
-export const ChartIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <path d="M3 3v18h18" />
-    <path d="m7 15 4-4 3 3 6-7" />
-  </Icon>
-);
 export const ShieldIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />
@@ -95,10 +89,43 @@ export const PinIcon = (p: IconProps) => (
     <circle cx="12" cy="10" r="3" />
   </Icon>
 );
-export const CupIcon = (p: IconProps) => (
+export const LinkIcon = (p: IconProps) => (
   <Icon {...p}>
-    <path d="M17 8h1a4 4 0 1 1 0 8h-1" />
-    <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" />
-    <path d="M6 2v2M10 2v2M14 2v2" />
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+  </Icon>
+);
+export const CardIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="2" y="5" width="20" height="14" rx="2" />
+    <path d="M2 10h20" />
+  </Icon>
+);
+export const CloseIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M18 6 6 18M6 6l12 12" />
+  </Icon>
+);
+export const BoltIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M13 2 4 14h7l-1 8 9-12h-7z" />
+  </Icon>
+);
+export const CopyIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="9" y="9" width="12" height="12" rx="2" />
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+  </Icon>
+);
+export const ClockIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </Icon>
+);
+export const PhoneIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="6" y="2" width="12" height="20" rx="3" />
+    <path d="M11 18h2" />
   </Icon>
 );
