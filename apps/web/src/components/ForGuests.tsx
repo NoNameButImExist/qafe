@@ -123,7 +123,10 @@ function OrderStatus() {
 export function ForGuests() {
   const { t } = useI18n();
   return (
-    <section id="za-goste" className="relative overflow-hidden pt-16 pb-24 sm:pt-20 sm:pb-32">
+    <section
+      id="za-goste"
+      className="theme-sand relative overflow-hidden pt-16 pb-24 sm:pt-20 sm:pb-32"
+    >
       <div className="mx-auto grid max-w-7xl items-center gap-16 px-4 sm:px-6 lg:grid-cols-[1.1fr_1fr]">
         <div>
           <SectionHeading

@@ -2,63 +2,111 @@
 
 /*
  * Design tokens. Every colour on the page comes from here; components only use the
- * semantic names (bg-paper, text-ink, bg-primary...). The page is dark, in the qafe.ba
- * brand navy (#0B1F3F) with brand blue (#0070E8, see packages/ui/theme.css); "ice" is a
- * soft light blue for small accents. Only printed things (the table tent, the QR card)
- * are white: bg-print / text-on-print.
+ * semantic names (bg-paper, text-ink, bg-primary...). Two colours carry the page:
+ * Cyprus #004643 (teal) and Sand Dune #F0EDE5. The default is teal; a section with
+ * `theme-sand` switches every token inside it to the sand set, and `theme-teal`
+ * switches back (e.g. the dark CTA card on a sand section). Printed things (the table
+ * tent, the QR card) use bg-print / text-on-print.
  */
 @theme {
   --font-display: 'Poppins', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
 
   /* Page, cards and text */
-  --color-paper: #050f1f;
-  --color-surface: #0b1a30;
-  --color-surface-2: #13284a;
-  --color-ink: #f2f5fa;
-  --color-muted: #94a6bf;
-  --color-line: #172c4b;
-  --color-line-strong: #24416a;
+  --color-paper: #004643;
+  --color-surface: #0b524e;
+  --color-surface-2: #155f5a;
+  --color-ink: #f0ede5;
+  --color-muted: #b4c6c0;
+  --color-line: #14605a;
+  --color-line-strong: #2a746d;
 
-  /* Raised navy sections */
-  --color-navy: #0a1b36;
-  --color-navy-deep: #040b18;
-  --color-navy-soft: #13294a;
-  --color-navy-line: #1f3a60;
-  --color-on-navy: #f2f5fa;
-  --color-on-navy-muted: #94a6bf;
+  /* Raised dark sections */
+  --color-navy: #003835;
+  --color-navy-deep: #002a28;
+  --color-navy-soft: #0b524e;
+  --color-navy-line: #1a635d;
+  --color-on-navy: #f0ede5;
+  --color-on-navy-muted: #b4c6c0;
 
-  /* Brand */
-  --color-primary: #0070e8;
-  --color-primary-hover: #0086fa;
-  --color-on-primary: #ffffff;
-  /* Blue for text and icons on the dark page. */
-  --color-bright: #5aaeff;
-  --color-highlight: #9fd2ff;
-  --color-on-highlight: #061426;
+  /* Brand: buttons are sand on teal */
+  --color-primary: #f0ede5;
+  --color-primary-hover: #ffffff;
+  --color-on-primary: #004643;
+  --color-bright: #8fd1c4;
+  --color-highlight: #f0ede5;
+  --color-on-highlight: #004643;
 
   /* Printed paper */
-  --color-print: #ffffff;
-  --color-on-print: #0b1f3f;
+  --color-print: #faf8f3;
+  --color-on-print: #004643;
 
   /* Status */
-  --color-success: #16a34a;
-  --color-success-bright: #4ade80;
+  --color-success: #2f9e6e;
+  --color-success-bright: #6fd6a8;
   --color-on-success: #ffffff;
-  --color-alert: #f87171;
+  --color-alert: #e8705f;
   --color-on-alert: #ffffff;
 
   /* Phone mockups */
-  --color-phone: #02070f;
-  --color-phone-edge: #2a3a52;
+  --color-phone: #011c1b;
+  --color-phone-edge: #23524e;
 
-  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 20px 40px -24px rgb(0 0 0 / 0.6);
-  --shadow-float: 0 30px 70px -24px rgb(0 0 0 / 0.75), 0 0 0 1px rgb(255 255 255 / 0.06);
-  --shadow-phone:
-    0 60px 120px -30px rgb(0 0 0 / 0.85), 0 0 80px -20px rgb(0 112 232 / 0.35),
-    inset 0 0 0 1px rgb(255 255 255 / 0.12);
-  --shadow-blue: 0 18px 44px -14px color-mix(in oklab, var(--color-primary) 80%, transparent);
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 20px 40px -24px rgb(0 0 0 / 0.45);
+  --shadow-float: 0 30px 70px -24px rgb(0 20 19 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.06);
+  --shadow-phone: 0 60px 120px -30px rgb(0 20 19 / 0.75), inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  --shadow-blue: 0 18px 44px -18px color-mix(in oklab, var(--color-primary) 55%, transparent);
   --shadow-scan: 0 0 18px 3px color-mix(in oklab, var(--color-highlight) 80%, transparent);
+}
+
+.theme-teal {
+  /* Page, cards and text */
+  --color-paper: #004643;
+  --color-surface: #0b524e;
+  --color-surface-2: #155f5a;
+  --color-ink: #f0ede5;
+  --color-muted: #b4c6c0;
+  --color-line: #14605a;
+  --color-line-strong: #2a746d;
+
+  /* Raised dark sections */
+  --color-navy: #003835;
+  --color-navy-deep: #002a28;
+  --color-navy-soft: #0b524e;
+  --color-navy-line: #1a635d;
+  --color-on-navy: #f0ede5;
+  --color-on-navy-muted: #b4c6c0;
+
+  /* Brand: buttons are sand on teal */
+  --color-primary: #f0ede5;
+  --color-primary-hover: #ffffff;
+  --color-on-primary: #004643;
+  --color-bright: #8fd1c4;
+  --color-highlight: #f0ede5;
+  --color-on-highlight: #004643;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+}
+
+.theme-sand {
+  /* Page, cards and text */
+  --color-paper: #f0ede5;
+  --color-surface: #faf8f3;
+  --color-surface-2: #e6e0d3;
+  --color-ink: #004643;
+  --color-muted: #4d6c68;
+  --color-line: #ddd5c5;
+  --color-line-strong: #cbc0ab;
+
+  /* Brand: buttons are teal on sand */
+  --color-primary: #004643;
+  --color-primary-hover: #003532;
+  --color-on-primary: #f0ede5;
+  --color-bright: #0b6b64;
+  --color-highlight: #004643;
+  --color-on-highlight: #f0ede5;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
 }
 
 :root {
@@ -67,7 +115,7 @@
   --thumb-2: linear-gradient(140deg, #d9b48a, #8a5d36);
   --thumb-3: linear-gradient(140deg, #f2d74e, #c79a18);
   --thumb-4: linear-gradient(140deg, #e9a15a, #9c5a22);
-  --cover: linear-gradient(135deg, #0b1f3f 0%, #0070e8 70%, #5aaeff 100%);
+  --cover: linear-gradient(135deg, #002a28 0%, #004643 60%, #2f7d75 100%);
 }
 
 @layer base {
@@ -107,7 +155,7 @@
   letter-spacing: -0.035em;
 }
 
-/* Dotted backdrop for light sections. */
+/* Dotted backdrop. */
 @utility bg-dots {
   background-image: radial-gradient(
     color-mix(in oklab, var(--color-ink) 7%, transparent) 1px,
@@ -125,7 +173,7 @@
   background-size: 22px 22px;
 }
 
-/* Blue to ice gradient on text. */
+/* Accent gradient on text. */
 @utility text-gradient {
   background: linear-gradient(100deg, var(--color-bright) 0%, var(--color-highlight) 100%);
   -webkit-background-clip: text;

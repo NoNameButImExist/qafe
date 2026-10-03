@@ -71,7 +71,7 @@ function CameraScreen({ step }: { step: number }) {
   return (
     <div className="relative h-full overflow-hidden bg-navy-deep">
       {/* What the camera sees: a blurry table and the tent close up. */}
-      <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_100%,#3b2a1f_0%,transparent_60%),radial-gradient(90%_60%_at_20%_10%,#1d3557_0%,transparent_70%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_100%,#3b2a1f_0%,transparent_60%),radial-gradient(90%_60%_at_20%_10%,#0b524e_0%,transparent_70%)]" />
       <motion.div
         className="absolute top-[44%] left-1/2 w-[64%] -translate-1/2"
         initial={false}
@@ -295,7 +295,7 @@ function TableTent() {
       <div className="relative rounded-[1.4em] bg-print p-[1em] pb-[1.1em] text-on-print shadow-float">
         <div className="flex items-center justify-between">
           <span className="font-display text-[1em] font-bold">
-            qafe<span className="text-primary">.ba</span>
+            qafe<span className="text-on-print/55">.ba</span>
           </span>
           <span className="rounded-full bg-on-print px-[0.6em] py-[0.15em] text-[0.7em] font-semibold text-print">
             {t.scene.table}
@@ -341,7 +341,7 @@ export function HeroScene() {
     >
       <div aria-hidden className="absolute inset-0" style={{ fontSize: '2.6cqw' }}>
         {/* Glow and table top */}
-        <div className="absolute top-[8%] left-[18%] size-[76%] rounded-full bg-primary/30 blur-[70px]" />
+        <div className="absolute top-[8%] left-[18%] size-[76%] rounded-full bg-bright/20 blur-[70px]" />
         <div className="absolute right-[2%] bottom-[2%] left-[0%] h-[20%] rounded-[50%] bg-surface-2 ring-1 ring-line" />
 
         {/* Table tent */}

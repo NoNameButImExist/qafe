@@ -25,11 +25,11 @@ export function Hero() {
     >
       <div
         aria-hidden
-        className="absolute top-[-10%] right-[-10%] -z-10 size-[900px] rounded-full bg-primary/25 blur-[160px]"
+        className="absolute top-[-10%] right-[-10%] -z-10 size-[900px] rounded-full bg-bright/15 blur-[160px]"
       />
       <div
         aria-hidden
-        className="absolute bottom-[-30%] left-[-20%] -z-10 size-[700px] rounded-full bg-bright/10 blur-[160px]"
+        className="absolute bottom-[-30%] left-[-20%] -z-10 size-[700px] rounded-full bg-navy-deep/40 blur-[160px]"
       />
       <div
         aria-hidden

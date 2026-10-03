@@ -33,11 +33,7 @@ const ICONS: Record<string, ComponentType<{ className?: string }>> = {
 export function Stats() {
   const { t } = useI18n();
   return (
-    <section className="relative isolate px-4 pt-20 pb-6 sm:px-6 sm:pt-28 sm:pb-8">
-      <div
-        aria-hidden
-        className="absolute top-1/2 left-1/2 -z-10 h-[360px] w-[min(1200px,120vw)] -translate-1/2 rounded-[50%] bg-primary/12 blur-[120px]"
-      />
+    <section className="theme-sand relative isolate px-4 pt-20 pb-6 sm:px-6 sm:pt-28 sm:pb-8">
       <dl className="mx-auto grid max-w-7xl gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
         {t.stats.items.map((item, i) => {
           const Icon = ICONS[item.key] ?? BoltIcon;

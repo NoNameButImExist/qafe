@@ -11,7 +11,7 @@ export function Faq() {
   const baseId = useId();
 
   return (
-    <section id="pitanja" className="py-24 sm:py-32">
+    <section id="pitanja" className="theme-sand py-24 sm:py-32">
       <div className="mx-auto grid max-w-7xl gap-12 px-4 sm:px-6 lg:grid-cols-[1fr_1.5fr]">
         <div className="lg:sticky lg:top-28 lg:self-start">
           <SectionHeading index="04" eyebrow={t.faq.eyebrow} title={t.faq.title} />

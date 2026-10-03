@@ -21,7 +21,7 @@ function Side({ label, time, steps, bar, done, good, play }: SideProps) {
   const Icon = good ? CheckIcon : CloseIcon;
   return (
     <div
-      className={`relative flex flex-col overflow-hidden rounded-[2rem] p-7 sm:p-9 ${good ? 'bg-linear-to-b from-navy-soft to-surface shadow-blue ring-1 ring-primary/50' : 'bg-surface/50 ring-1 ring-line'}`}
+      className={`relative flex flex-col overflow-hidden rounded-[2rem] p-7 sm:p-9 ${good ? 'theme-teal shadow-float' : 'bg-surface ring-1 ring-line'}`}
     >
       {good && (
         <div
@@ -99,7 +99,7 @@ export function Compare() {
   const play = useInView(ref, { once: true, amount: 0.35 });
 
   return (
-    <section className="relative isolate px-4 py-24 sm:px-6 sm:py-32">
+    <section className="theme-sand relative isolate px-4 py-24 sm:px-6 sm:py-32">
       <div className="mx-auto max-w-6xl">
         <motion.div
           className="mx-auto max-w-2xl text-center"
