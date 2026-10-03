@@ -1,99 +1,82 @@
 @import 'tailwindcss';
 
 /*
- * Design tokens. Every colour and coloured shadow on the page comes from here;
- * components only use the semantic names (bg-primary, text-on-primary, shadow-glow...).
- * To change the palette, change the values below (or the [data-palette] block further down).
+ * Design tokens. Every colour on the page comes from here; components only use the
+ * semantic names (bg-paper, text-ink, bg-primary...). The page is dark, in the qafe.ba
+ * brand navy (#0B1F3F) with brand blue (#0070E8, see packages/ui/theme.css); "ice" is a
+ * soft light blue for small accents. Only printed things (the table tent, the QR card)
+ * are white: bg-print / text-on-print.
  */
 @theme {
-  --font-display: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Poppins', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
 
-  /* Surfaces and text */
-  --color-canvas: #0c0806;
-  --color-surface: #15100c;
-  --color-surface-2: #211913;
-  --color-fg: #f6ebdd;
-  --color-muted: #b3a393;
-  --color-line: color-mix(in oklab, var(--color-fg) 10%, transparent);
+  /* Page, cards and text */
+  --color-paper: #050f1f;
+  --color-surface: #0b1a30;
+  --color-surface-2: #13284a;
+  --color-ink: #f2f5fa;
+  --color-muted: #94a6bf;
+  --color-line: #172c4b;
+  --color-line-strong: #24416a;
+
+  /* Raised navy sections */
+  --color-navy: #0a1b36;
+  --color-navy-deep: #040b18;
+  --color-navy-soft: #13294a;
+  --color-navy-line: #1f3a60;
+  --color-on-navy: #f2f5fa;
+  --color-on-navy-muted: #94a6bf;
 
   /* Brand */
-  --color-primary: #ffb547;
-  --color-on-primary: #0c0806;
-  --color-accent: #ff5a36;
-  --color-accent-2: #ff8fb1;
-  --color-glow: #8b3dff;
+  --color-primary: #0070e8;
+  --color-primary-hover: #0086fa;
+  --color-on-primary: #ffffff;
+  /* Blue for text and icons on the dark page. */
+  --color-bright: #5aaeff;
+  --color-highlight: #9fd2ff;
+  --color-on-highlight: #061426;
 
-  /* Status: the same meaning in every palette */
-  --color-success: #4ee6b0;
-  --color-on-success: #06231a;
-  --color-alert: #ff5a36;
-  --color-on-alert: #1c0703;
+  /* Printed paper */
+  --color-print: #ffffff;
+  --color-on-print: #0b1f3f;
 
-  /* Printed things: the QR table tent and the scanned code */
-  --color-paper: #f6ebdd;
-  --color-on-paper: #0c0806;
+  /* Status */
+  --color-success: #16a34a;
+  --color-success-bright: #4ade80;
+  --color-on-success: #ffffff;
+  --color-alert: #f87171;
+  --color-on-alert: #ffffff;
 
   /* Phone mockups */
-  --color-phone-top: #2a211b;
-  --color-phone-bottom: #120d0a;
+  --color-phone: #02070f;
+  --color-phone-edge: #2a3a52;
 
-  /* Coloured shadows */
-  --shadow-glow: 0 0 40px 4px color-mix(in oklab, var(--color-primary) 35%, transparent);
-  --shadow-glow-strong: 0 0 40px 8px color-mix(in oklab, var(--color-primary) 60%, transparent);
-  --shadow-glow-dark: 0 0 40px 4px color-mix(in oklab, var(--color-canvas) 35%, transparent);
-  --shadow-scanline: 0 0 20px 4px color-mix(in oklab, var(--color-primary) 70%, transparent);
-  --shadow-band: 0 20px 80px -20px color-mix(in oklab, var(--color-primary) 50%, transparent);
-  --shadow-tent: 0 60px 120px -30px color-mix(in oklab, var(--color-accent) 45%, transparent);
-  --shadow-phone: 0 40px 120px -20px rgb(0 0 0 / 0.9), inset 0 1px 0 rgb(255 255 255 / 0.08);
-}
-
-/*
- * Palette proposals while the brand colours are being decided. The default above is
- * "espresso"; the alternative is previewed with ?palette=<name> or the switcher in the corner.
- * Status colours (success, alert) keep their meaning in every palette.
- */
-
-/* Crema: light, warm cream with terracotta. Café menu feel, calm but confident. */
-html[data-palette='crema'] {
-  --color-canvas: #f6efe6;
-  --color-surface: #fffaf3;
-  --color-surface-2: #efe4d6;
-  --color-fg: #1c120c;
-  --color-muted: #7a6656;
-
-  --color-primary: #e4572e;
-  --color-on-primary: #ffffff;
-  --color-accent: #f29e4c;
-  --color-accent-2: #b8336a;
-  --color-glow: #f7c59f;
-
-  /* Darker shade on a light background, same meaning. */
-  --color-success: #1fa97a;
-
-  --color-paper: #ffffff;
-  --color-on-paper: #1c120c;
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 20px 40px -24px rgb(0 0 0 / 0.6);
+  --shadow-float: 0 30px 70px -24px rgb(0 0 0 / 0.75), 0 0 0 1px rgb(255 255 255 / 0.06);
+  --shadow-phone:
+    0 60px 120px -30px rgb(0 0 0 / 0.85), 0 0 80px -20px rgb(0 112 232 / 0.35),
+    inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  --shadow-blue: 0 18px 44px -14px color-mix(in oklab, var(--color-primary) 80%, transparent);
+  --shadow-scan: 0 0 18px 3px color-mix(in oklab, var(--color-highlight) 80%, transparent);
 }
 
 :root {
   /* Placeholder "photos" for menu items in the phone mockups. */
-  --thumb-1: linear-gradient(135deg, #c2682a, #5a2a16);
-  --thumb-2: linear-gradient(135deg, #c98b2c, #5c3f17);
-  --thumb-3: linear-gradient(135deg, #b8b02e, #585218);
-  --thumb-4: linear-gradient(135deg, #7fb532, #3a5a19);
-
-  /* Swatches in the palette switcher (each shows its own palette, whichever is active). */
-  --swatch-espresso: linear-gradient(135deg, #ffb547, #ff5a36);
-  --swatch-crema: linear-gradient(135deg, #f6efe6 50%, #e4572e 50%);
+  --thumb-1: linear-gradient(140deg, #8a5a3c, #3b2418);
+  --thumb-2: linear-gradient(140deg, #d9b48a, #8a5d36);
+  --thumb-3: linear-gradient(140deg, #f2d74e, #c79a18);
+  --thumb-4: linear-gradient(140deg, #e9a15a, #9c5a22);
+  --cover: linear-gradient(135deg, #0b1f3f 0%, #0070e8 70%, #5aaeff 100%);
 }
 
 @layer base {
   html {
-    background: var(--color-canvas);
-    color: var(--color-fg);
+    background: var(--color-paper);
+    color: var(--color-ink);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
-    scroll-padding-top: 5rem;
+    scroll-padding-top: 5.5rem;
   }
 
   @media (prefers-reduced-motion: no-preference) {
@@ -108,8 +91,8 @@ html[data-palette='crema'] {
   }
 
   ::selection {
-    background: var(--color-primary);
-    color: var(--color-on-primary);
+    background: var(--color-highlight);
+    color: var(--color-on-highlight);
   }
 
   :focus-visible {
@@ -121,46 +104,38 @@ html[data-palette='crema'] {
 
 @utility font-display {
   font-family: var(--font-display);
-  font-variation-settings: 'wdth' 100;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.035em;
 }
 
-/* Film grain over the whole page. Pointer events pass through. */
-@utility grain {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  pointer-events: none;
-  opacity: 0.06;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+/* Dotted backdrop for light sections. */
+@utility bg-dots {
+  background-image: radial-gradient(
+    color-mix(in oklab, var(--color-ink) 7%, transparent) 1px,
+    transparent 1.4px
+  );
+  background-size: 22px 22px;
 }
 
+/* Same on navy. */
+@utility bg-dots-navy {
+  background-image: radial-gradient(
+    color-mix(in oklab, var(--color-on-navy) 7%, transparent) 1px,
+    transparent 1.4px
+  );
+  background-size: 22px 22px;
+}
+
+/* Blue to ice gradient on text. */
 @utility text-gradient {
-  background: linear-gradient(
-    100deg,
-    var(--color-primary) 10%,
-    var(--color-accent) 60%,
-    var(--color-accent-2) 100%
-  );
+  background: linear-gradient(100deg, var(--color-bright) 0%, var(--color-highlight) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
-@utility bg-grid {
-  background-image:
-    linear-gradient(var(--color-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--color-line) 1px, transparent 1px);
-  background-size: 56px 56px;
-}
-
-@utility text-ghost {
-  background: linear-gradient(
-    180deg,
-    color-mix(in oklab, var(--color-fg) 12%, transparent),
-    transparent
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+/* Frosted glass card. */
+@utility glass {
+  background: color-mix(in oklab, var(--color-surface) 70%, transparent);
+  backdrop-filter: blur(16px);
+  border: 1px solid color-mix(in oklab, var(--color-ink) 9%, transparent);
 }

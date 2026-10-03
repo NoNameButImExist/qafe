@@ -1,12 +1,12 @@
 import { animate, motion, useInView } from 'motion/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ComponentType } from 'react';
 import { useI18n } from '../i18n/context';
-import { Reveal } from './Reveal';
+import { BoltIcon, ClockIcon, CopyIcon, PhoneIcon } from './icons';
 
 // Counts up to the value; a zero counts down from 12 instead, which reads better.
 function Counter({ value }: { value: number }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const inView = useInView(ref, { once: true, margin: '-100px' });
+  const inView = useInView(ref, { once: true, margin: '-80px' });
   const from = value === 0 ? 12 : 0;
   const [display, setDisplay] = useState(from);
 
@@ -23,37 +23,63 @@ function Counter({ value }: { value: number }) {
   return <span ref={ref}>{display}</span>;
 }
 
+const ICONS: Record<string, ComponentType<{ className?: string }>> = {
+  speed: BoltIcon,
+  duplicates: CopyIcon,
+  start: ClockIcon,
+  devices: PhoneIcon,
+};
+
 export function Stats() {
   const { t } = useI18n();
   return (
-    <section className="relative border-y border-line bg-surface py-24 sm:py-32">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <Reveal>
-          <h2 className="max-w-2xl font-display text-4xl font-bold text-balance sm:text-5xl">
-            {t.stats.title}
-          </h2>
-        </Reveal>
-        <dl className="mt-16 grid gap-px overflow-hidden rounded-3xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
-          {t.stats.items.map((item, i) => (
+    <section className="relative isolate px-4 pt-20 pb-6 sm:px-6 sm:pt-28 sm:pb-8">
+      <div
+        aria-hidden
+        className="absolute top-1/2 left-1/2 -z-10 h-[360px] w-[min(1200px,120vw)] -translate-1/2 rounded-[50%] bg-primary/12 blur-[120px]"
+      />
+      <dl className="mx-auto grid max-w-7xl gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
+        {t.stats.items.map((item, i) => {
+          const Icon = ICONS[item.key] ?? BoltIcon;
+          return (
             <motion.div
-              key={item.label}
-              initial={{ opacity: 0, y: 30 }}
+              key={item.key}
+              initial={{ opacity: 0, y: 28 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-60px' }}
-              transition={{ delay: i * 0.1, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-              className="group relative flex flex-col justify-between gap-10 overflow-hidden bg-surface p-8"
+              viewport={{ once: true, margin: '-40px' }}
+              transition={{ delay: i * 0.08, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+              whileHover={{ y: -4 }}
+              className="group glass relative flex flex-col overflow-hidden rounded-3xl p-7"
             >
-              <div className="absolute inset-0 bg-linear-to-br from-primary/0 to-accent/0 transition-colors duration-500 group-hover:from-primary/10 group-hover:to-accent/5" />
-              <dt className="relative order-2 text-muted">{item.label}</dt>
-              <dd className="relative order-1 font-display text-6xl font-extrabold tabular-nums xl:text-7xl">
-                <span className="text-primary">{item.prefix}</span>
-                <Counter value={item.value} />
-                <span className="text-primary">{item.suffix}</span>
+              <div
+                aria-hidden
+                className="absolute -top-16 -right-16 size-40 rounded-full bg-primary/0 blur-[50px] transition-colors duration-500 group-hover:bg-primary/30"
+              />
+              <span className="grid size-11 place-items-center rounded-2xl bg-primary/15 text-bright ring-1 ring-primary/30">
+                <Icon className="size-5" />
+              </span>
+              <dd className="order-2 mt-8">
+                <span className="block text-sm font-medium tracking-wide text-muted uppercase">
+                  {item.prefix}
+                </span>
+                <span className="text-gradient mt-1 block font-display text-6xl leading-none font-bold tabular-nums">
+                  <Counter value={item.value} />
+                  {item.suffix}
+                </span>
               </dd>
+              <dt className="order-3 mt-4 mb-7 text-muted">{item.label}</dt>
+              <motion.span
+                aria-hidden
+                className="order-4 mt-auto block h-0.5 origin-left rounded-full bg-linear-to-r from-primary to-highlight"
+                initial={{ scaleX: 0 }}
+                whileInView={{ scaleX: 1 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.4 + i * 0.1, duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
+              />
             </motion.div>
-          ))}
-        </dl>
-      </div>
+          );
+        })}
+      </dl>
     </section>
   );
 }
