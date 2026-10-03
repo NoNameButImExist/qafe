@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1](https://github.com/NoNameButImExist/qafe/compare/web-v0.4.0...web-v0.4.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* izmjena boja homepage-a ([fb7adfe](https://github.com/NoNameButImExist/qafe/commit/fb7adfe06651f58a5b303cccd857d9355d365e64))
+* izmjena boja homepage-a ([77a1bdb](https://github.com/NoNameButImExist/qafe/commit/77a1bdbd52eb888f5a6cd9294047ac7ef83ff7fe))
+
 ## [0.4.0](https://github.com/NoNameButImExist/qafe/compare/web-v0.3.0...web-v0.4.0) (2026-10-03)
 
 
