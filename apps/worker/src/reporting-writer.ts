@@ -42,7 +42,7 @@ export class ReportingWriter {
               payment_method: e.paymentMethod,
             })),
           )
-          .onConflict((oc) => oc.column('order_item_id').doNothing())
+          .onConflict((oc) => oc.columns(['order_item_id', 'business_date']).doNothing())
           .execute(),
       );
     }

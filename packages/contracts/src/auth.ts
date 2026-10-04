@@ -121,3 +121,32 @@ export const MfaCodeRequest = z.object({
     .regex(/^\d{6}$/, 'totp'),
 });
 export type MfaCodeRequest = z.infer<typeof MfaCodeRequest>;
+
+// ---------- PIN sign-in on a shared device (FR-KON-01) ----------
+
+/** POST /auth/staff/devices — link the device in hand to the venue (staff.manage). */
+export const LinkStaffDeviceRequest = z.object({ name: z.string().trim().min(1).max(60) });
+export type LinkStaffDeviceRequest = z.infer<typeof LinkStaffDeviceRequest>;
+
+export const StaffDevice = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  createdAt: z.string(),
+  lastUsedAt: z.string().nullable(),
+});
+export type StaffDevice = z.infer<typeof StaffDevice>;
+
+/** GET /auth/staff/device — on a linked device: the venue and who can sign in with a PIN. */
+export const StaffDeviceRoster = z.object({
+  device: z.object({ id: z.uuid(), name: z.string() }),
+  venue: z.object({ name: z.string(), slug: z.string() }),
+  members: z.array(z.object({ memberId: z.uuid(), name: z.string(), role: z.string() })),
+});
+export type StaffDeviceRoster = z.infer<typeof StaffDeviceRoster>;
+
+/** POST /auth/staff/pin-login — name (member) + PIN, only on a linked device. */
+export const PinLoginRequest = z.object({
+  memberId: z.uuid(),
+  pin: z.string().regex(/^\d{4,6}$/, 'pin'),
+});
+export type PinLoginRequest = z.infer<typeof PinLoginRequest>;

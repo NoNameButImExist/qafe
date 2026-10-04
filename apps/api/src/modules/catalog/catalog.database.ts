@@ -13,6 +13,7 @@ export class CatalogDatabase extends TenantDatabase implements OnModuleDestroy {
       user: 'svc_catalog',
       password: config.db.catalogPassword,
       applicationName: 'qafe-api:catalog',
+      max: config.db.poolMax,
     });
   }
 

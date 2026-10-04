@@ -21,6 +21,12 @@ const queryClient = new QueryClient({
   },
 });
 
+// The service worker keeps the app shell for offline starts (NFR-05) and shows pushes.
+// Not in dev: Vite serves unhashed modules that must never come from a cache.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  void navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+}
+
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element');
 

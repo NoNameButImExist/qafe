@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Card, cn, ConfirmDialog, Menu, MenuItem, Notice, useNotice } from '@qafe/ui';
 import { CreateStaffSheet } from '../components/staff/CreateStaffSheet';
 import { EditMemberSheet, SecretSheet } from '../components/staff/MemberSheets';
+import { StaffDevices } from '../components/staff/StaffDevices';
 import { useStaffMutation } from '../components/staff/useStaffMutation';
 import { api, errorKey } from '../lib/api';
 import { formatDate } from '../lib/format';
@@ -231,6 +232,8 @@ export function StaffPage() {
           )}
         </Card>
       )}
+
+      {canManage && <StaffDevices onError={(text) => setNotice({ tone: 'error', text })} />}
 
       {data && dialog?.kind === 'create' && <CreateStaffSheet staff={data} onClose={close} />}
       {data && dialog?.kind === 'edit' && (

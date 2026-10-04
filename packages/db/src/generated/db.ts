@@ -71,6 +71,17 @@ export type Numeric = ColumnType<string, number | string, number | string>;
 
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
+export interface AuditActions {
+  action: string;
+  first_seen: Generated<Timestamp>;
+}
+
+export interface AuditActorLabels {
+  actor_id: string;
+  label: string;
+  updated_at: Timestamp;
+}
+
 export interface AuditAuditLogs {
   action: string;
   actor_id: string | null;
@@ -86,6 +97,12 @@ export interface AuditAuditLogs {
   service: string;
   venue_id: string | null;
   venue_label: string | null;
+}
+
+export interface AuditVenueLabels {
+  label: string;
+  updated_at: Timestamp;
+  venue_id: string;
 }
 
 export interface BillingOutbox {
@@ -320,6 +337,17 @@ export interface CoreShifts {
   member_id: string;
   note: string | null;
   started_at: Generated<Timestamp>;
+  venue_id: string;
+}
+
+export interface CoreStaffDevices {
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  id: Generated<string>;
+  last_used_at: Timestamp | null;
+  name: string;
+  revoked_at: Timestamp | null;
+  token_hash: string;
   venue_id: string;
 }
 
@@ -648,7 +676,10 @@ export interface ReportingOrderItemFacts {
 }
 
 export interface DB {
+  'audit.actions': AuditActions;
+  'audit.actor_labels': AuditActorLabels;
   'audit.audit_logs': AuditAuditLogs;
+  'audit.venue_labels': AuditVenueLabels;
   'billing.outbox': BillingOutbox;
   'billing.payment_items': BillingPaymentItems;
   'billing.payments': BillingPayments;
@@ -673,6 +704,7 @@ export interface DB {
   'core.prep_stations': CorePrepStations;
   'core.role_permissions': CoreRolePermissions;
   'core.shifts': CoreShifts;
+  'core.staff_devices': CoreStaffDevices;
   'core.tables': CoreTables;
   'core.users': CoreUsers;
   'core.venue_members': CoreVenueMembers;

@@ -19,7 +19,10 @@ export interface DbConnectionOptions {
 export interface TenantContext {
   /** The venue whose rows are visible. null = platform-level work (no venue rows visible). */
   venueId: string | null;
-  /** Platform super admin: RLS policies let every venue through. */
+  /**
+   * Platform-level work (admin screens, worker jobs) across venues: the transaction runs as
+   * the module's platform role (`svc_<module>_platform`, BYPASSRLS, same privileges).
+   */
   isSuperAdmin: boolean;
 }
 
@@ -31,6 +34,8 @@ export type Tx = Transaction<DB>;
  */
 export class TenantDatabase {
   readonly #db: Kysely<DB>;
+  /** The role platform contexts switch to; null for logins that are not module roles. */
+  readonly #platformRole: string | null;
 
   constructor(options: DbConnectionOptions) {
     const pool = new pg.Pool({
@@ -43,15 +48,23 @@ export class TenantDatabase {
       application_name: options.applicationName,
     });
     this.#db = new Kysely<DB>({ dialect: new PostgresDialect({ pool }) });
+    this.#platformRole = /^svc_[a-z]+$/.test(options.user) ? `${options.user}_platform` : null;
   }
 
-  /** Runs `fn` in a transaction with the RLS context set (`set_config(..., is_local => true)`). */
+  /**
+   * Runs `fn` in a transaction with the RLS context set (`set_config(..., is_local => true)`).
+   * Venue contexts see only that venue (the policies are `venue_id = app.current_venue_id()`,
+   * served by indexes); platform contexts switch to the platform role for this transaction only.
+   */
   withTenant<T>(ctx: TenantContext, fn: (trx: Tx) => Promise<T>): Promise<T> {
     return this.#db.transaction().execute(async (trx) => {
       await sql`
         select set_config('app.venue_id', ${ctx.venueId ?? ''}, true),
                set_config('app.is_super_admin', ${ctx.isSuperAdmin ? 'true' : 'false'}, true)
       `.execute(trx);
+      if (ctx.isSuperAdmin && this.#platformRole) {
+        await sql`set local role ${sql.id(this.#platformRole)}`.execute(trx);
+      }
       return fn(trx);
     });
   }

@@ -7,6 +7,12 @@ const Env = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
 
   POSTGRES_HOST: z.string().default('localhost'),
+  /** Connections per module pool in one api process (6 modules; mind max_connections). */
+  DB_POOL_MAX: z.coerce.number().int().min(1).max(50).default(10),
+  /** Prometheus for the admin monitoring screen (FR-ADM-17); empty = screen shows "not set up". */
+  PROMETHEUS_URL: z.url().optional(),
+  /** Link from the monitoring screen to Grafana. */
+  GRAFANA_URL: z.url().optional(),
   POSTGRES_PORT: z.coerce.number().int().positive().default(5432),
   POSTGRES_DB: z.string().default('qafe'),
   SVC_CORE_PASSWORD: z.string().min(1),
@@ -86,8 +92,10 @@ export interface AppConfig {
     orderingPassword: string;
     billingPassword: string;
     reportingPassword: string;
+    poolMax: number;
   };
   redis: { host: string; port: number; password: string | undefined };
+  monitoring: { prometheusUrl: string | null; grafanaUrl: string | null };
   storage: StorageConfig;
   auth: {
     privateKeyPem: string;
@@ -150,8 +158,13 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
       orderingPassword: env.SVC_ORDERING_PASSWORD,
       billingPassword: env.SVC_BILLING_PASSWORD,
       reportingPassword: env.SVC_REPORTING_PASSWORD,
+      poolMax: env.DB_POOL_MAX,
     },
     redis: { host: env.REDIS_HOST, port: env.REDIS_PORT, password: env.REDIS_PASSWORD },
+    monitoring: {
+      prometheusUrl: env.PROMETHEUS_URL ?? null,
+      grafanaUrl: env.GRAFANA_URL ?? null,
+    },
     storage: storageConfig(env),
     auth: {
       privateKeyPem: readKey(env.JWT_PRIVATE_KEY, env.JWT_PRIVATE_KEY_PATH),

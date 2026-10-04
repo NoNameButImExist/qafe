@@ -13,6 +13,7 @@ export class CoreDatabase extends TenantDatabase implements OnModuleDestroy {
       user: 'svc_core',
       password: config.db.corePassword,
       applicationName: 'qafe-api:core',
+      max: config.db.poolMax,
     });
   }
 

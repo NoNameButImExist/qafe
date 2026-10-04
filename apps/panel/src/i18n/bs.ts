@@ -441,6 +441,18 @@ const bs = {
     },
   },
   staff: {
+    devices: {
+      title: 'Uređaji za prijavu PIN-om',
+      hint: 'Tablet ili telefon lokala na kojem se osoblje prijavljuje imenom i PIN-om. Povezuje se u aplikaciji za osoblje: prijavite se kao šef i otvorite „Ovaj uređaj".',
+      empty: 'Još nema povezanih uređaja.',
+      linkedAt: 'Povezan {{date}}',
+      usedAt: 'zadnja prijava {{date}}',
+      neverUsed: 'još bez prijave',
+      revoke: 'Ukloni',
+      revokeTitle: 'Ukloniti uređaj „{{name}}"?',
+      revokeBody:
+        'Na tom uređaju se više niko ne može prijaviti PIN-om. Već prijavljeni ostaju prijavljeni do odjave ili zaključavanja.',
+    },
     requireChange: 'Mora promijeniti lozinku pri prijavi',
     requireChangeHint:
       'Preporučeno: lozinku ste vidjeli vi, pa konobar postavlja svoju pri prvoj prijavi.',

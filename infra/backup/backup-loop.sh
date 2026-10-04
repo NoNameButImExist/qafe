@@ -1,5 +1,6 @@
 #!/bin/sh
-# Runs backup.sh every day at BACKUP_AT (HH:MM, TZ from the environment; default 02:30).
+# Runs backup.sh every day at BACKUP_AT (HH:MM, TZ from the environment; default 02:30),
+# then archive-audit.sh (moves audit log months past the retention window to S3).
 # With an argument, runs that script once instead: backup-loop.sh backup.sh | restore.sh [key]
 set -eu
 if [ "$#" -gt 0 ]; then exec "$@"; fi
@@ -12,4 +13,5 @@ while true; do
   [ "$next" -gt "$now" ] || next=$((next + 86400))
   sleep $((next - now))
   backup.sh || echo "[backup] FAILED; next try tomorrow"
+  archive-audit.sh || echo "[audit-archive] FAILED; next try tomorrow"
 done

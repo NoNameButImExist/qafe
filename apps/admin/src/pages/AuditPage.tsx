@@ -1,5 +1,5 @@
 import type { AuditEntry } from '@qafe/contracts';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import {
   Blocks,
@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, cn, Input, Pagination, Select } from '@qafe/ui';
+import { Button, Card, cn, Input, Select } from '@qafe/ui';
 import { errorKey } from '../lib/api';
 import type { AuditSearch } from '../lib/auditSearch';
 import { formatDate, formatTime } from '../lib/format';
@@ -78,21 +78,20 @@ export function AuditPage() {
   const search = useSearch({ from: '/app/audit' });
   const navigate = useNavigate({ from: '/audit' });
   const facets = useQuery(auditFacetsQuery);
-  const page = search.page ?? 1;
-  const entries = useQuery(
+  const entries = useInfiniteQuery(
     auditQuery({
       action: search.action,
       venueId: search.venueId,
       actorId: search.actorId,
       from: search.from,
       to: search.to,
-      page,
-      pageSize: PAGE_SIZE,
+      limit: PAGE_SIZE,
     }),
   );
+  const items = entries.data?.pages.flatMap((p) => p.items);
 
   const setFilter = (patch: Partial<AuditSearch>) =>
-    void navigate({ search: (s) => ({ ...s, ...patch, page: undefined }) });
+    void navigate({ search: (s) => ({ ...s, ...patch }) });
   const filtered = Boolean(
     search.action || search.venueId || search.actorId || search.from || search.to,
   );
@@ -178,7 +177,7 @@ export function AuditPage() {
             <CircleAlert className="size-6" />
             {t(errorKey(entries.error))}
           </div>
-        ) : entries.data && entries.data.items.length === 0 ? (
+        ) : items && items.length === 0 ? (
           <div className="flex flex-col items-center px-6 py-16 text-center">
             <span className="grid size-14 place-items-center rounded-2xl bg-primary/10 text-accent">
               <ScrollText className="size-6" />
@@ -195,7 +194,7 @@ export function AuditPage() {
                 entries.isPlaceholderData && 'opacity-60',
               )}
             >
-              {(entries.data?.items ?? Array.from({ length: 6 }, () => null)).map((entry, i) =>
+              {(items ?? Array.from({ length: 6 }, () => null)).map((entry, i) =>
                 entry ? (
                   <AuditRow key={entry.id} entry={entry} label={actionLabel(entry.action)} />
                 ) : (
@@ -205,15 +204,19 @@ export function AuditPage() {
                 ),
               )}
             </ol>
-            <Pagination
-              summary={t('audit.count', { count: entries.data?.total ?? 0 })}
-              page={page}
-              pageSize={PAGE_SIZE}
-              total={entries.data?.total ?? 0}
-              onPage={(p) =>
-                void navigate({ search: (s) => ({ ...s, page: p > 1 ? p : undefined }) })
-              }
-            />
+            <div className="flex items-center justify-between gap-4 border-t border-line px-5 py-3 text-[13px] text-muted">
+              <span>{t('audit.shown', { count: items?.length ?? 0 })}</span>
+              {entries.hasNextPage && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={entries.isFetchingNextPage}
+                  onClick={() => void entries.fetchNextPage()}
+                >
+                  {t('audit.loadMore')}
+                </Button>
+              )}
+            </div>
           </>
         )}
       </Card>

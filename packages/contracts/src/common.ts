@@ -17,6 +17,8 @@ export const ErrorCode = {
   accountDisabled: 'account_disabled',
   mfaRequired: 'mfa_required',
   tooManyAttempts: 'too_many_attempts',
+  /** PIN sign-in on a device that is not (or no longer) linked to a venue (FR-KON-01). */
+  deviceNotLinked: 'device_not_linked',
   forbidden: 'forbidden',
   notFound: 'not_found',
   slugTaken: 'slug_taken',

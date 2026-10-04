@@ -437,6 +437,18 @@ const en: Messages = {
     },
   },
   staff: {
+    devices: {
+      title: 'Devices for PIN sign-in',
+      hint: 'A tablet or phone of the venue where staff sign in with their name and PIN. It is linked in the staff app: sign in as the owner and open "This device".',
+      empty: 'No linked devices yet.',
+      linkedAt: 'Linked {{date}}',
+      usedAt: 'last sign-in {{date}}',
+      neverUsed: 'no sign-in yet',
+      revoke: 'Remove',
+      revokeTitle: 'Remove the device "{{name}}"?',
+      revokeBody:
+        'Nobody can sign in with a PIN on that device any more. Members already signed in stay so until they sign out or it locks.',
+    },
     requireChange: 'Must change the password at sign-in',
     requireChangeHint:
       'Recommended: you have seen the password, so the waiter sets their own at the first sign-in.',

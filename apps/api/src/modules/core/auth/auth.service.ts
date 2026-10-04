@@ -14,10 +14,12 @@ import {
   type AuthSession,
   type Me,
   type StaffMe,
+  type StaffDeviceRoster,
   type StaffSession,
 } from '@qafe/contracts';
 import type { TenantContext, Tx } from '@qafe/db';
 import { sql } from 'kysely';
+import { createHash } from 'node:crypto';
 import { ApiException, unauthorized } from '../../../common/errors.js';
 import { APP_CONFIG, type AppConfig } from '../../../config/config.js';
 import { CoreDatabase } from '../core.database.js';
@@ -80,6 +82,12 @@ const invalidCredentials = () =>
   new ApiException(HttpStatus.UNAUTHORIZED, ErrorCode.invalidCredentials, 'Invalid credentials');
 const accountDisabled = () =>
   new ApiException(HttpStatus.FORBIDDEN, ErrorCode.accountDisabled, 'Account is disabled');
+const deviceNotLinked = () =>
+  new ApiException(
+    HttpStatus.UNAUTHORIZED,
+    ErrorCode.deviceNotLinked,
+    'This device is not linked to a venue',
+  );
 const venueClosed = () =>
   new ApiException(HttpStatus.FORBIDDEN, ErrorCode.venueClosed, 'This venue is closed');
 
@@ -209,6 +217,129 @@ export class AuthService {
         ip: client.ip,
         venueId: venue.venue_id,
         venueName: issued.session.user.venue.name,
+        actor: { id: member.user_id, label: staffLabel(member) },
+      });
+      return issued;
+    });
+  }
+
+  /**
+   * The venue a linked shared device belongs to (FR-KON-01), from its token. Null when the
+   * device was never linked or has been revoked.
+   */
+  async resolveDevice(
+    deviceToken: string | undefined,
+  ): Promise<{ deviceId: string; venueId: string; deviceName: string } | null> {
+    if (!deviceToken || deviceToken.length > 100) return null;
+    const hash = hashDeviceToken(deviceToken);
+    return this.db.withTenant(PLATFORM, async (trx) => {
+      const { rows } = await sql<{ device_id: string; venue_id: string; device_name: string }>`
+        select device_id, venue_id, device_name from core.resolve_staff_device(${hash})
+      `.execute(trx);
+      const row = rows[0];
+      return row
+        ? { deviceId: row.device_id, venueId: row.venue_id, deviceName: row.device_name }
+        : null;
+    });
+  }
+
+  /** Who may sign in with a PIN on this device: active members with a PIN set. */
+  async deviceRoster(deviceToken: string | undefined): Promise<StaffDeviceRoster> {
+    const device = await this.resolveDevice(deviceToken);
+    if (!device) throw deviceNotLinked();
+    return this.db.withTenant(venueContext(device.venueId), async (trx) => {
+      const venue = await trx
+        .selectFrom('core.venues')
+        .select(['name', 'slug', 'status'])
+        .where('id', '=', device.venueId)
+        .executeTakeFirst();
+      if (!venue || venue.status === 'closed') throw deviceNotLinked();
+      const members = await trx
+        .selectFrom('core.venue_members as m')
+        .innerJoin('core.users as u', 'u.id', 'm.user_id')
+        .innerJoin('core.venue_roles as r', 'r.id', 'm.role_id')
+        .select(['m.id', 'm.display_name', 'u.full_name', 'r.name as role'])
+        .where('m.pin_hash', 'is not', null)
+        .where('m.is_active', '=', true)
+        .where('u.is_active', '=', true)
+        .where('u.deleted_at', 'is', null)
+        .orderBy('u.full_name')
+        .execute();
+      return {
+        device: { id: device.deviceId, name: device.deviceName },
+        venue: { name: venue.name, slug: venue.slug },
+        members: members.map((m) => ({
+          memberId: m.id,
+          name: m.display_name ?? m.full_name,
+          role: m.role,
+        })),
+      };
+    });
+  }
+
+  /**
+   * PIN sign-in on a linked shared device (FR-KON-01). A 4-6 digit PIN is short, so tries are
+   * limited per device and member (5 per 15 min) and per device (20), as for passwords.
+   */
+  async staffPinLogin(
+    deviceToken: string | undefined,
+    memberId: string,
+    pin: string,
+    client: ClientInfo,
+  ): Promise<IssuedSession<StaffSession>> {
+    const device = await this.resolveDevice(deviceToken);
+    if (!device) throw deviceNotLinked();
+    const throttleKey = `device:${device.deviceId}`;
+    const account = `pin:${device.deviceId}/${memberId}`;
+    await this.throttle.assertAllowed(throttleKey, account);
+
+    const found = await this.db.withTenant(venueContext(device.venueId), async (trx) => {
+      const member = await this.memberQuery(trx)
+        .select('m.pin_hash')
+        .where('m.id', '=', memberId)
+        .executeTakeFirst();
+      const status = await this.venueStatus(trx, device.venueId);
+      return { member, status };
+    });
+    const member = found.member;
+    const pinOk = member?.pin_hash
+      ? await verifyPassword(member.pin_hash, pin)
+      : await verifyAgainstDummy(pin);
+    if (!member || !pinOk) {
+      await this.throttle.recordFailure(throttleKey, account);
+      throw invalidCredentials();
+    }
+    if (!member.member_active || !member.user_active) throw accountDisabled();
+    if (found.status === 'closed') throw venueClosed();
+    await this.throttle.recordSuccess(throttleKey, account);
+
+    return this.db.withTenant(venueContext(device.venueId), async (trx) => {
+      // The PIN is not the password: a temporary password does not block a PIN sign-in.
+      const issued = await this.startStaffSession(
+        trx,
+        device.venueId,
+        { ...member, must_change_password: false },
+        client,
+      );
+      await trx
+        .updateTable('core.staff_devices')
+        .set({ last_used_at: new Date() })
+        .where('id', '=', device.deviceId)
+        .execute();
+      await trx
+        .updateTable('core.users')
+        .set({ last_login_at: new Date() })
+        .where('id', '=', member.user_id)
+        .execute();
+      await publish(trx, {
+        type: 'user.logged_in',
+        userId: member.user_id,
+        sessionId: issued.sessionId,
+        ip: client.ip,
+        venueId: device.venueId,
+        venueName: issued.session.user.venue.name,
+        method: 'pin',
+        deviceName: device.deviceName,
         actor: { id: member.user_id, label: staffLabel(member) },
       });
       return issued;
@@ -557,6 +688,11 @@ export class AuthService {
       .where('revoked_at', 'is', null)
       .execute();
   }
+}
+
+/** Device tokens are stored only as sha256 (like refresh tokens). */
+export function hashDeviceToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
 }
 
 function staffLabel(member: { full_name: string; username: string }): string {

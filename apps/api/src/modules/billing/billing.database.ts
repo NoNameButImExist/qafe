@@ -13,6 +13,7 @@ export class BillingDatabase extends TenantDatabase implements OnModuleDestroy {
       user: 'svc_billing',
       password: config.db.billingPassword,
       applicationName: 'qafe-api:billing',
+      max: config.db.poolMax,
     });
   }
 

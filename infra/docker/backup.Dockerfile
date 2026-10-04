@@ -4,5 +4,5 @@
 FROM postgres:16-alpine
 RUN apk add --no-cache aws-cli openssl tzdata
 COPY infra/backup/*.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/backup.sh /usr/local/bin/restore.sh /usr/local/bin/backup-loop.sh
+RUN chmod +x /usr/local/bin/*.sh
 ENTRYPOINT ["/usr/local/bin/backup-loop.sh"]

@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import {
   Armchair,
@@ -14,7 +15,9 @@ import {
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AuthBrandPanel, Brand, Button, Field, Input, LanguageSwitch, ThemeToggle } from '@qafe/ui';
+import { PinLogin } from '../components/PinLogin';
 import { errorKey } from '../lib/api';
+import { deviceRosterQuery } from '../lib/device';
 import { useAuth } from '../lib/useAuth';
 
 const LAST_VENUE = 'qafe.staff.venue';
@@ -39,6 +42,13 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A device linked to the venue offers names and PINs first (FR-KON-01).
+  const roster = useQuery(deviceRosterQuery);
+  const [usePassword, setUsePassword] = useState(false);
+  const goOn = () =>
+    void navigate({
+      to: redirect?.startsWith('/') && !redirect.startsWith('//') ? redirect : '/',
+    });
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -98,87 +108,116 @@ export function LoginPage() {
           </h1>
           <p className="mt-1.5 text-sm text-muted">{t('login.subtitle')}</p>
 
-          {error && (
-            <div
-              role="alert"
-              className="mt-6 flex items-start gap-2.5 rounded-xl border border-danger/25 bg-danger/8 px-4 py-3 text-[13px] font-medium text-danger"
-            >
-              <CircleAlert className="mt-px size-4 shrink-0" />
-              {error}
-            </div>
+          {roster.data && !usePassword ? (
+            <PinLogin
+              roster={roster.data}
+              onSignedIn={goOn}
+              onPassword={() => setUsePassword(true)}
+            />
+          ) : (
+            <>
+              {error && (
+                <div
+                  role="alert"
+                  className="mt-6 flex items-start gap-2.5 rounded-xl border border-danger/25 bg-danger/8 px-4 py-3 text-[13px] font-medium text-danger"
+                >
+                  <CircleAlert className="mt-px size-4 shrink-0" />
+                  {error}
+                </div>
+              )}
+
+              <form
+                onSubmit={(e) => void onSubmit(e)}
+                className="mt-6 flex flex-col gap-4"
+                noValidate
+              >
+                <Field label={t('login.venue')} hint={t('login.venueHint')}>
+                  {({ id, describedBy }) => (
+                    <Input
+                      id={id}
+                      aria-describedby={describedBy}
+                      autoComplete="organization"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      required
+                      autoFocus={!venue}
+                      value={venue}
+                      onChange={(e) => setVenue(e.target.value)}
+                      icon={<Store className="size-4" />}
+                      trailing={<span className="pr-2.5 text-[13px] text-muted">.qafe.ba</span>}
+                      className="pr-20"
+                    />
+                  )}
+                </Field>
+                <Field label={t('login.username')}>
+                  {({ id }) => (
+                    <Input
+                      id={id}
+                      autoComplete="username"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      required
+                      autoFocus={Boolean(venue)}
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      icon={<User className="size-4" />}
+                    />
+                  )}
+                </Field>
+                <Field label={t('login.password')}>
+                  {({ id }) => (
+                    <Input
+                      id={id}
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="current-password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      icon={<Lock className="size-4" />}
+                      trailing={
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((s) => !s)}
+                          aria-label={
+                            showPassword ? t('login.hidePassword') : t('login.showPassword')
+                          }
+                          className="grid size-8 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-ink"
+                        >
+                          {showPassword ? (
+                            <EyeOff className="size-4" />
+                          ) : (
+                            <Eye className="size-4" />
+                          )}
+                        </button>
+                      }
+                    />
+                  )}
+                </Field>
+
+                <Button
+                  type="submit"
+                  size="lg"
+                  loading={submitting}
+                  disabled={!venue || !username || !password}
+                  className="group mt-2 w-full"
+                >
+                  {t('login.submit')}
+                  {!submitting && (
+                    <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+                  )}
+                </Button>
+              </form>
+              {roster.data && (
+                <button
+                  type="button"
+                  onClick={() => setUsePassword(false)}
+                  className="mt-4 min-h-11 text-[13px] font-semibold text-accent hover:underline"
+                >
+                  {t('pin.usePin')}
+                </button>
+              )}
+            </>
           )}
-
-          <form onSubmit={(e) => void onSubmit(e)} className="mt-6 flex flex-col gap-4" noValidate>
-            <Field label={t('login.venue')} hint={t('login.venueHint')}>
-              {({ id, describedBy }) => (
-                <Input
-                  id={id}
-                  aria-describedby={describedBy}
-                  autoComplete="organization"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  required
-                  autoFocus={!venue}
-                  value={venue}
-                  onChange={(e) => setVenue(e.target.value)}
-                  icon={<Store className="size-4" />}
-                  trailing={<span className="pr-2.5 text-[13px] text-muted">.qafe.ba</span>}
-                  className="pr-20"
-                />
-              )}
-            </Field>
-            <Field label={t('login.username')}>
-              {({ id }) => (
-                <Input
-                  id={id}
-                  autoComplete="username"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  required
-                  autoFocus={Boolean(venue)}
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  icon={<User className="size-4" />}
-                />
-              )}
-            </Field>
-            <Field label={t('login.password')}>
-              {({ id }) => (
-                <Input
-                  id={id}
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  icon={<Lock className="size-4" />}
-                  trailing={
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((s) => !s)}
-                      aria-label={showPassword ? t('login.hidePassword') : t('login.showPassword')}
-                      className="grid size-8 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-ink"
-                    >
-                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                    </button>
-                  }
-                />
-              )}
-            </Field>
-
-            <Button
-              type="submit"
-              size="lg"
-              loading={submitting}
-              disabled={!venue || !username || !password}
-              className="group mt-2 w-full"
-            >
-              {t('login.submit')}
-              {!submitting && (
-                <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-              )}
-            </Button>
-          </form>
         </div>
       </main>
     </div>

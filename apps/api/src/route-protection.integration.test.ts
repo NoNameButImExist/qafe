@@ -14,6 +14,10 @@ const PUBLIC = new Set([
   'POST /auth/staff/login',
   'POST /auth/staff/refresh',
   'POST /auth/staff/logout',
+  // PIN sign-in on a shared device: the device cookie stands in for the account (FR-KON-01).
+  'GET /auth/staff/device',
+  'POST /auth/staff/pin-login',
+  'POST /auth/staff/device/forget',
   'GET /.well-known/jwks.json',
   'GET /venues/:slug/public',
   // Guests have no account: GuestGuard takes the venue from the host and the device cookie.

@@ -13,6 +13,7 @@ export class ReportingDatabase extends TenantDatabase implements OnModuleDestroy
       user: 'svc_reporting',
       password: config.db.reportingPassword,
       applicationName: 'qafe-api:reporting',
+      max: config.db.poolMax,
     });
   }
 

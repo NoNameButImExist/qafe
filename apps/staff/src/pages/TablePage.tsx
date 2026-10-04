@@ -23,7 +23,7 @@ import { OrderCard } from '../components/OrderCard';
 import { api } from '../lib/api';
 import { formatMoney, formatTime } from '../lib/format';
 import { floorQuery, sessionQuery } from '../lib/queries';
-import { useAction } from '../lib/useAction';
+import { useAction, useQueuedAction } from '../lib/useAction';
 import { useCan } from '../lib/useAuth';
 import { tableRoute } from '../router';
 
@@ -115,8 +115,13 @@ function SessionView({ detail }: { detail: StaffSessionDetail }) {
   const approve = useAction((guestId: string) =>
     api<void>(`${base}/guests/${guestId}/approve`, { method: 'POST' }),
   );
-  const request = useAction(({ id, action }: { id: string; action: 'acknowledge' | 'done' }) =>
-    api<void>(`/staff/requests/${id}/${action}`, { method: 'POST' }),
+  const request = useQueuedAction(
+    ({ id, action }: { id: string; action: 'acknowledge' | 'done' }) => ({
+      method: 'POST',
+      path: `/staff/requests/${id}/${action}`,
+      patch: { id, fields: { status: action === 'acknowledge' ? 'acknowledged' : 'done' } },
+      label: t('table.title', { label: detail.tableLabel }),
+    }),
   );
   const [removing, setRemoving] = useState<StaffSessionGuest | null>(null);
   const [block, setBlock] = useState(true);

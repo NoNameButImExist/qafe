@@ -13,6 +13,7 @@ export class OrderingDatabase extends TenantDatabase implements OnModuleDestroy 
       user: 'svc_ordering',
       password: config.db.orderingPassword,
       applicationName: 'qafe-api:ordering',
+      max: config.db.poolMax,
     });
   }
 

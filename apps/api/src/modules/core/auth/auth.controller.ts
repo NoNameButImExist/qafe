@@ -3,12 +3,16 @@ import { publicJwk } from '@qafe/auth';
 import {
   AdminLoginRequest,
   ChangePasswordRequest,
+  LinkStaffDeviceRequest,
   MfaCodeRequest,
+  PinLoginRequest,
   StaffLoginRequest,
   type MfaSetup,
   type MfaStatus,
   type AuthSession,
   type Me,
+  type StaffDevice,
+  type StaffDeviceRoster,
   type StaffMe,
   type StaffSession,
 } from '@qafe/contracts';
@@ -19,6 +23,7 @@ import {
   Public,
   CurrentStaff,
   CurrentUser,
+  RequirePermission,
   StaffGuard,
   type AccessClaims,
   type StaffClaims,
@@ -32,6 +37,7 @@ import {
   type IssuedSession,
   type SessionKind,
 } from './auth.service.js';
+import { StaffDevicesService } from '../staff/staff-devices.service.js';
 import { MfaService } from './mfa.service.js';
 
 /**
@@ -43,11 +49,15 @@ export const REFRESH_COOKIE: Record<SessionKind, string> = {
   staff: 'qafe_srt',
 };
 
+/** Token of a shared device linked to a venue for PIN sign-in (FR-KON-01). */
+export const DEVICE_COOKIE = 'qafe_sdev';
+
 @Controller()
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly mfa: MfaService,
+    private readonly devices: StaffDevicesService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
@@ -125,6 +135,58 @@ export class AuthController {
   async staffLogout(@Req() req: FastifyRequest, @Res({ passthrough: true }) reply: FastifyReply) {
     await this.auth.logout(req.cookies[REFRESH_COOKIE.staff]);
     this.clearCookie(reply, 'staff');
+  }
+
+  /** Links the device in hand to the venue: PIN sign-in becomes possible on it (FR-KON-01). */
+  @Post('auth/staff/devices')
+  @UseGuards(StaffGuard)
+  @RequirePermission('staff.manage')
+  async linkDevice(
+    @CurrentStaff() staff: StaffClaims,
+    @Body(new ZodPipe(LinkStaffDeviceRequest)) body: LinkStaffDeviceRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<StaffDevice> {
+    const { device, token } = await this.devices.link(staff, body.name);
+    void reply.setCookie(DEVICE_COOKIE, token, {
+      httpOnly: true,
+      secure: this.config.auth.cookieSecure,
+      sameSite: 'strict',
+      path: this.config.auth.cookiePath,
+      maxAge: 365 * 86_400,
+    });
+    return device;
+  }
+
+  /** On a linked device: the venue and the members who can sign in with a PIN. */
+  @Get('auth/staff/device')
+  @Public()
+  deviceRoster(@Req() req: FastifyRequest): Promise<StaffDeviceRoster> {
+    return this.auth.deviceRoster(req.cookies[DEVICE_COOKIE]);
+  }
+
+  @Post('auth/staff/pin-login')
+  @Public()
+  @HttpCode(200)
+  async pinLogin(
+    @Body(new ZodPipe(PinLoginRequest)) body: PinLoginRequest,
+    @Req() req: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<StaffSession> {
+    const issued = await this.auth.staffPinLogin(
+      req.cookies[DEVICE_COOKIE],
+      body.memberId,
+      body.pin,
+      client(req),
+    );
+    return this.issue(reply, 'staff', issued);
+  }
+
+  /** Forgets the link on this device only (the owner revokes it in the panel). */
+  @Post('auth/staff/device/forget')
+  @Public()
+  @HttpCode(204)
+  forgetDevice(@Res({ passthrough: true }) reply: FastifyReply): void {
+    void reply.clearCookie(DEVICE_COOKIE, { path: this.config.auth.cookiePath });
   }
 
   @Get('auth/staff/me')

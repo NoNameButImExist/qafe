@@ -1,8 +1,16 @@
 import { z } from 'zod';
-import { pageOf, PageQuery } from './common.js';
-
-/** GET /admin/audit (FR-ADM-10). Dates are inclusive calendar days (YYYY-MM-DD). */
-export const AuditQuery = PageQuery.extend({
+/**
+ * GET /admin/audit (FR-ADM-10). Dates are inclusive calendar days (YYYY-MM-DD).
+ * Newest first, page by page with `cursor` (the `nextCursor` of the previous page): the log
+ * can hold hundreds of millions of rows, so it is never counted or skipped through.
+ */
+export const AuditQuery = z.object({
+  cursor: z
+    .string()
+    .max(100)
+    .regex(/^[A-Za-z0-9_-]+$/)
+    .optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
   venueId: z.uuid().optional(),
   actorId: z.uuid().optional(),
   action: z.string().max(60).optional(),
@@ -29,10 +37,14 @@ export const AuditEntry = z.object({
 });
 export type AuditEntry = z.infer<typeof AuditEntry>;
 
-export const AuditList = pageOf(AuditEntry);
+export const AuditList = z.object({
+  items: z.array(AuditEntry),
+  /** Pass as `cursor` for the next (older) page; null on the last page. */
+  nextCursor: z.string().nullable(),
+});
 export type AuditList = z.infer<typeof AuditList>;
 
-/** Filter options: actions and actors that appear in the log. */
+/** Filter options: actions, people and venues that appear in the log. */
 export const AuditFacets = z.object({
   actions: z.array(z.string()),
   actors: z.array(z.object({ id: z.string(), label: z.string() })),

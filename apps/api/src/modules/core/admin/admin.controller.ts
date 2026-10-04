@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import {
   AdminUserListQuery,
+  MonitoringQuery,
   CreateVenueRequest,
   ResetPasswordRequest,
   type ResetPasswordInput,
@@ -28,6 +29,7 @@ import {
   type VenueDetail,
   type VenueModuleState,
   type AdminStats,
+  type MonitoringOverview,
   type CreateVenueInput,
   type CreateVenueResponse,
   type VenueList,
@@ -42,6 +44,7 @@ import {
 import { ZodPipe } from '../../../common/zod.pipe.js';
 import { AdminUsersService } from './admin-users.service.js';
 import { AdminVenuesService } from './admin-venues.service.js';
+import { MonitoringService } from './monitoring.service.js';
 
 /** Platform administration (FR-ADM). Super admins only. */
 @Controller('admin')
@@ -50,7 +53,16 @@ export class AdminController {
   constructor(
     private readonly venues: AdminVenuesService,
     private readonly users: AdminUsersService,
+    private readonly monitoring: MonitoringService,
   ) {}
+
+  /** FR-ADM-17, FR-ADM-18: services, latency and errors, from Prometheus only (NFR-22). */
+  @Get('monitoring')
+  monitoringOverview(
+    @Query(new ZodPipe(MonitoringQuery)) query: { window: '1h' | '24h' | '7d' },
+  ): Promise<MonitoringOverview> {
+    return this.monitoring.overview(query.window);
+  }
 
   @Get('stats')
   stats(): Promise<AdminStats> {

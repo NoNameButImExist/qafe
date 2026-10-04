@@ -42,9 +42,11 @@ export async function testConfig(
       orderingPassword: db.connection('ordering').password,
       billingPassword: db.connection('billing').password,
       reportingPassword: db.connection('reporting').password,
+      poolMax: 10,
     },
     redis: { host: redis.getHost(), port: redis.getPort(), password: undefined },
     storage: { driver: 'memory' },
+    monitoring: { prometheusUrl: null, grafanaUrl: null },
     auth: {
       privateKeyPem: await exportPKCS8(keys.privateKey),
       publicKeyPem: await exportSPKI(keys.publicKey),

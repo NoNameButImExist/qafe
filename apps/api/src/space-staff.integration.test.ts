@@ -1,5 +1,12 @@
 // Areas, tables, QR codes and staff accounts of a venue, over HTTP against a real Postgres.
-import type { StaffSession, VenueSpace, VenueStaff } from '@qafe/contracts';
+import type {
+  StaffDevice,
+  StaffDeviceRoster,
+  StaffMe,
+  StaffSession,
+  VenueSpace,
+  VenueStaff,
+} from '@qafe/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createVenue, startTestApp, type TestApp } from './test-support/test-app.js';
 
@@ -364,5 +371,102 @@ describe('staff accounts', () => {
       isActive: false,
     });
     expect(res.statusCode).toBe(404);
+  });
+});
+
+describe('PIN sign-in on a shared device (FR-KON-01)', () => {
+  let device: StaffDevice;
+  let cookie: string;
+  let waiterId: string;
+  const withDevice = (method: Method, url: string, payload?: object, value = cookie) =>
+    t.app.inject({
+      method,
+      url,
+      payload,
+      headers: { cookie: `qafe_sdev=${value}` },
+      remoteAddress: '10.9.9.9',
+    });
+
+  it('only the owner links a device; the device gets its token as an httpOnly cookie', async () => {
+    expect(
+      (await call(waiter, 'POST', '/auth/staff/devices', { name: 'Tablet šank' })).statusCode,
+    ).toBe(403);
+    const res = await call(owner, 'POST', '/auth/staff/devices', { name: 'Tablet šank' });
+    expect(res.statusCode).toBe(201);
+    device = res.json<StaffDevice>();
+    const set = res.cookies.find((c) => c.name === 'qafe_sdev');
+    expect(set).toMatchObject({ httpOnly: true, sameSite: 'Strict' });
+    cookie = set!.value;
+    expect(cookie.length).toBeGreaterThanOrEqual(40);
+  });
+
+  it('lists the members who have a PIN, only on a linked device', async () => {
+    const staff = (await call(owner, 'GET', '/venue/staff')).json<VenueStaff>();
+    waiterId = staff.members.find((m) => m.username === 'konobar')!.memberId;
+    await call(owner, 'PUT', `/venue/staff/${waiterId}/pin`, { pin: '4821' });
+
+    const noDevice = await t.app.inject({ method: 'GET', url: '/auth/staff/device' });
+    expect(noDevice.statusCode).toBe(401);
+    expect(noDevice.json()).toMatchObject({ error: { code: 'device_not_linked' } });
+
+    const roster = (await withDevice('GET', '/auth/staff/device')).json<StaffDeviceRoster>();
+    expect(roster.device.name).toBe('Tablet šank');
+    expect(roster.venue.slug).toBe('kafa-a');
+    const ids = roster.members.map((m) => m.memberId);
+    expect(ids).toContain(waiterId);
+    // Members without a PIN (the owner here) are not offered.
+    const ownerId = staff.members.find((m) => m.username === 'sef')!.memberId;
+    expect(ids).not.toContain(ownerId);
+  });
+
+  it('signs a member in with the right PIN and refuses a wrong one', async () => {
+    const wrong = await withDevice('POST', '/auth/staff/pin-login', {
+      memberId: waiterId,
+      pin: '0000',
+    });
+    expect(wrong.statusCode).toBe(401);
+    expect(wrong.json()).toMatchObject({ error: { code: 'invalid_credentials' } });
+
+    const ok = await withDevice('POST', '/auth/staff/pin-login', {
+      memberId: waiterId,
+      pin: '4821',
+    });
+    expect(ok.statusCode).toBe(200);
+    const session = ok.json<StaffSession>();
+    const me = (await call(session.accessToken, 'GET', '/auth/staff/me')).json<StaffMe>();
+    expect(me).toMatchObject({ memberId: waiterId, username: 'konobar' });
+    expect(ok.cookies.some((c) => c.name === 'qafe_srt')).toBe(true);
+
+    // Without the device cookie the PIN alone is worth nothing.
+    const bare = await t.app.inject({
+      method: 'POST',
+      url: '/auth/staff/pin-login',
+      payload: { memberId: waiterId, pin: '4821' },
+    });
+    expect(bare.json()).toMatchObject({ error: { code: 'device_not_linked' } });
+  });
+
+  it('limits PIN guesses per device and member', async () => {
+    const results: number[] = [];
+    for (let i = 0; i < 6; i++) {
+      results.push(
+        (await withDevice('POST', '/auth/staff/pin-login', { memberId: waiterId, pin: '1111' }))
+          .statusCode,
+      );
+    }
+    expect(results.at(-1)).toBe(429);
+  });
+
+  it('keeps devices per venue, and a revoked device stops working', async () => {
+    expect((await call(ownerB, 'GET', '/venue/staff-devices')).json<StaffDevice[]>()).toEqual([]);
+    expect((await call(ownerB, 'DELETE', `/venue/staff-devices/${device.id}`)).statusCode).toBe(
+      404,
+    );
+
+    const list = (await call(owner, 'GET', '/venue/staff-devices')).json<StaffDevice[]>();
+    expect(list.map((d) => d.name)).toEqual(['Tablet šank']);
+    expect(list[0]!.lastUsedAt).not.toBeNull();
+    expect((await call(owner, 'DELETE', `/venue/staff-devices/${device.id}`)).statusCode).toBe(204);
+    expect((await withDevice('GET', '/auth/staff/device')).statusCode).toBe(401);
   });
 });
