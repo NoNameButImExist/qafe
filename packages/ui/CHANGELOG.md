@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.2](https://github.com/NoNameButImExist/qafe/compare/ui-v0.4.1...ui-v0.4.2) (2026-10-04)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @qafe/contracts bumped to 0.7.0
+
 ## [0.4.1](https://github.com/NoNameButImExist/qafe/compare/ui-v0.4.0...ui-v0.4.1) (2026-10-02)
 
 

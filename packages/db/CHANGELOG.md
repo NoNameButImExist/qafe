@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/NoNameButImExist/qafe/compare/db-v0.3.0...db-v0.4.0) (2026-10-04)
+
+
+### Features
+
+* skaliranje, offline osoblje, PIN prijava za zajednicke uredjaje, monitoring za admina ([cae51ed](https://github.com/NoNameButImExist/qafe/commit/cae51edb3904010f75dee0d451f1f32c4d06e3b5))
+* skaliranje, offline osoblje, PIN prijava za zajednicke uredjaje… ([0877a87](https://github.com/NoNameButImExist/qafe/commit/0877a87e96de72aabb96f3d2ff789b8009e7b22b))
+
 ## [0.3.0](https://github.com/NoNameButImExist/qafe/compare/db-v0.2.2...db-v0.3.0) (2026-10-02)
 
 

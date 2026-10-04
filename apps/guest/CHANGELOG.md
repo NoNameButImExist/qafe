@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.6.0](https://github.com/NoNameButImExist/qafe/compare/guest-v0.5.0...guest-v0.6.0) (2026-10-04)
+
+
+### Features
+
+* skaliranje, offline osoblje, PIN prijava za zajednicke uredjaje, monitoring za admina ([cae51ed](https://github.com/NoNameButImExist/qafe/commit/cae51edb3904010f75dee0d451f1f32c4d06e3b5))
+* skaliranje, offline osoblje, PIN prijava za zajednicke uredjaje… ([0877a87](https://github.com/NoNameButImExist/qafe/commit/0877a87e96de72aabb96f3d2ff789b8009e7b22b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @qafe/contracts bumped to 0.7.0
+    * @qafe/ui bumped to 0.4.2
+
 ## [0.5.0](https://github.com/NoNameButImExist/qafe/compare/guest-v0.4.0...guest-v0.5.0) (2026-10-02)
 
 

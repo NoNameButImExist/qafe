@@ -1,6 +1,6 @@
 {
   "name": "@qafe/api",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "description": "qafe.ba API: modular monolith (core, catalog, ordering, billing, audit, reporting).",
