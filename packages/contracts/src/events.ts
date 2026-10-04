@@ -52,6 +52,9 @@ export const UserLoggedInEvent = z.object({
   /** Set for venue staff: the venue they signed in to. */
   venueId: z.uuid().optional(),
   venueName: z.string().optional(),
+  /** Staff: password on their own phone, or PIN on a shared device of the venue (FR-KON-01). */
+  method: z.enum(['password', 'pin']).optional(),
+  deviceName: z.string().optional(),
   actor: Actor,
 });
 export type UserLoggedInEvent = z.infer<typeof UserLoggedInEvent>;
@@ -81,6 +84,9 @@ export const SpaceEvent = z.object({
     'table.updated',
     'table.deleted',
     'table.qr_rotated',
+    // Shared devices for PIN sign-in (FR-KON-01).
+    'staff_device.linked',
+    'staff_device.revoked',
   ]),
   ...venueRef,
   entityId: z.uuid(),

@@ -13,7 +13,7 @@ export class AuditDatabase extends TenantDatabase implements OnModuleDestroy {
       user: 'svc_audit',
       password: config.db.auditPassword,
       applicationName: 'qafe-api:audit',
-      max: 4,
+      max: Math.min(4, config.db.poolMax),
     });
   }
 

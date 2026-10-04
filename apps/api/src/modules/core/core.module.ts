@@ -16,8 +16,11 @@ import { VenueSettingsController } from './venue/venue-settings.controller.js';
 import {
   VenueSpaceController,
   VenueStaffController,
+  VenueStaffDevicesController,
 } from './venue/venue-space-staff.controller.js';
 import { SpaceService } from './space/space.service.js';
+import { MonitoringService } from './admin/monitoring.service.js';
+import { StaffDevicesService } from './staff/staff-devices.service.js';
 import { StaffService } from './staff/staff.service.js';
 import { VenueSettingsService } from './venue/venue-settings.service.js';
 
@@ -30,6 +33,7 @@ import { VenueSettingsService } from './venue/venue-settings.service.js';
     VenueSettingsController,
     VenueSpaceController,
     VenueStaffController,
+    VenueStaffDevicesController,
   ],
   providers: [
     CoreDatabase,
@@ -39,9 +43,11 @@ import { VenueSettingsService } from './venue/venue-settings.service.js';
     AuthService,
     AdminVenuesService,
     AdminUsersService,
+    MonitoringService,
     VenueSettingsService,
     SpaceService,
     StaffService,
+    StaffDevicesService,
     VenueDirectory,
     {
       provide: TOKEN_SIGNER,

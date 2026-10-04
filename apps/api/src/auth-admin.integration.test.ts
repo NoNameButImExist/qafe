@@ -442,6 +442,15 @@ describe('audit log', () => {
              ('t:2', NULL, NULL, '00000000-0000-4000-8000-0000000000bb', 'Bo (bo@qafe.ba)', 'core', 'user.logged_in',
               'user', '00000000-0000-4000-8000-0000000000bb', NULL, NULL, '2026-09-02T10:00:00Z')
     `);
+    // The worker also keeps the filter values next to the log.
+    await admin.query(`
+      INSERT INTO audit.actions (action) VALUES ('user.logged_in'), ('venue.status_changed');
+      INSERT INTO audit.actor_labels (actor_id, label, updated_at)
+      VALUES ('00000000-0000-4000-8000-0000000000aa', 'Ana (ana@qafe.ba)', '2026-09-01T10:00:00Z'),
+             ('00000000-0000-4000-8000-0000000000bb', 'Bo (bo@qafe.ba)', '2026-09-02T10:00:00Z');
+      INSERT INTO audit.venue_labels (venue_id, label, updated_at)
+      VALUES ('00000000-0000-4000-8000-00000000000a', 'Venue A', '2026-09-01T10:00:00Z');
+    `);
   });
 
   it('lists entries newest first and filters them', async () => {
@@ -453,19 +462,25 @@ describe('audit log', () => {
       after: { status: 'active' },
     });
 
-    expect((await call('/admin/audit?action=user.logged_in')).json<AuditList>().total).toBe(1);
-    expect(
-      (await call('/admin/audit?venueId=00000000-0000-4000-8000-00000000000a')).json<AuditList>()
-        .total,
-    ).toBe(1);
-    expect(
-      (await call('/admin/audit?actorId=00000000-0000-4000-8000-0000000000bb')).json<AuditList>()
-        .total,
-    ).toBe(1);
-    expect((await call('/admin/audit?from=2026-09-02&to=2026-09-02')).json<AuditList>().total).toBe(
-      1,
-    );
+    expect(all.nextCursor).toBeNull();
+    const count = async (url: string) => (await call(url)).json<AuditList>().items.length;
+    expect(await count('/admin/audit?action=user.logged_in')).toBe(1);
+    expect(await count('/admin/audit?venueId=00000000-0000-4000-8000-00000000000a')).toBe(1);
+    expect(await count('/admin/audit?actorId=00000000-0000-4000-8000-0000000000bb')).toBe(1);
+    expect(await count('/admin/audit?from=2026-09-02&to=2026-09-02')).toBe(1);
     expect((await call('/admin/audit?from=bad')).statusCode).toBe(400);
+    expect((await call('/admin/audit?cursor=bad')).statusCode).toBe(400);
+  });
+
+  it('pages through older entries with a cursor, never counting the log', async () => {
+    const first = (await call('/admin/audit?limit=1')).json<AuditList>();
+    expect(first.items.map((e) => e.action)).toEqual(['user.logged_in']);
+    expect(typeof first.nextCursor).toBe('string');
+    const second = (
+      await call(`/admin/audit?limit=1&cursor=${first.nextCursor}`)
+    ).json<AuditList>();
+    expect(second.items.map((e) => e.action)).toEqual(['venue.status_changed']);
+    expect(second.nextCursor).toBeNull();
   });
 
   it('offers the values present in the log as filters', async () => {

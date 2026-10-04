@@ -5,12 +5,14 @@ import type {
   AuditFacets,
   AuditList,
   AuditParams,
+  MonitoringOverview,
+  MonitoringWindow,
   PlatformModule,
   VenueDetail,
   VenueList,
   VenueListParams,
 } from '@qafe/contracts';
-import { keepPreviousData, queryOptions } from '@tanstack/react-query';
+import { infiniteQueryOptions, keepPreviousData, queryOptions } from '@tanstack/react-query';
 import { api } from './api';
 
 export const adminStatsQuery = queryOptions({
@@ -48,10 +50,16 @@ export const usersQuery = (params: AdminUserListParams) =>
     placeholderData: keepPreviousData,
   });
 
-export const auditQuery = (params: AuditParams) =>
-  queryOptions({
+/** Newest entries first; "Učitaj još" fetches the next older page by cursor. */
+export const auditQuery = (params: Omit<AuditParams, 'cursor'>) =>
+  infiniteQueryOptions({
     queryKey: ['admin', 'audit', params],
-    queryFn: () => api<AuditList>('/admin/audit', { query: { ...params } }),
+    queryFn: ({ pageParam }) =>
+      api<AuditList>('/admin/audit', {
+        query: { ...params, ...(pageParam ? { cursor: pageParam } : {}) },
+      }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
     placeholderData: keepPreviousData,
   });
 
@@ -59,3 +67,12 @@ export const auditFacetsQuery = queryOptions({
   queryKey: ['admin', 'audit', 'facets'],
   queryFn: () => api<AuditFacets>('/admin/audit/facets'),
 });
+
+/** FR-ADM-17, FR-ADM-18: refreshed every 30 s while the screen is open. */
+export const monitoringQuery = (window: MonitoringWindow) =>
+  queryOptions({
+    queryKey: ['admin', 'monitoring', window],
+    queryFn: () => api<MonitoringOverview>('/admin/monitoring', { query: { window } }),
+    refetchInterval: 30_000,
+    placeholderData: keepPreviousData,
+  });

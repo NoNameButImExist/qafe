@@ -168,6 +168,20 @@ CREATE TABLE core.venue_networks (
   UNIQUE (venue_id, network)
 );
 
+-- Zajednički uređaji lokala za prijavu PIN-om (FR-KON-01). Uređaj čuva dugi nasumični token
+-- u httpOnly cookie-ju; ovdje je samo njegov sha256. Opoziv (revoked_at) gasi PIN prijavu.
+CREATE TABLE core.staff_devices (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id     uuid        NOT NULL REFERENCES core.venues(id) ON DELETE CASCADE,
+  name         varchar(60) NOT NULL,
+  token_hash   varchar(64) NOT NULL UNIQUE,
+  created_by   uuid        REFERENCES core.venue_members(id) ON DELETE SET NULL,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  last_used_at timestamptz,
+  revoked_at   timestamptz
+);
+CREATE INDEX idx_staff_devices_venue ON core.staff_devices (venue_id) WHERE revoked_at IS NULL;
+
 -- Katalog modula koje admin može uključiti (FR-ADM-06)
 CREATE TABLE core.modules (
   code        varchar(40) PRIMARY KEY,
@@ -493,6 +507,10 @@ CREATE TABLE ordering.table_sessions (
 );
 CREATE UNIQUE INDEX uq_table_sessions_active
   ON ordering.table_sessions(table_id) WHERE status IN ('open', 'bill_requested');
+-- Upiti jednog lokala (otvoreni stolovi, istorija) kroz indeks, ne kroz sve lokale.
+CREATE INDEX idx_sessions_venue_open ON ordering.table_sessions (venue_id)
+  WHERE status IN ('open', 'bill_requested');
+CREATE INDEX idx_sessions_venue_opened ON ordering.table_sessions (venue_id, opened_at DESC);
 
 -- Uređaji gostiju u sesiji (FR-GOS-20..26)
 CREATE TABLE ordering.session_guests (
@@ -790,8 +808,10 @@ CREATE INDEX idx_billing_outbox_unpublished ON billing.outbox(id) WHERE publishe
 -- =====================================================================
 -- 5. AUDIT
 -- =====================================================================
+-- Podijeljen po mjesecima (created_at = vrijeme događaja u modulu): upit za zadnje dane čita
+-- samo nove particije, a stari mjeseci se arhiviraju u S3 i odvajaju cijeli (NFR-25).
 CREATE TABLE audit.audit_logs (
-  id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id          bigint GENERATED ALWAYS AS IDENTITY,
   venue_id    uuid,                            -- NULL = akcija na nivou platforme
   actor_id    uuid,                            -- -> core.users
   service     varchar(30) NOT NULL,            -- koji servis je poslao događaj
@@ -801,9 +821,35 @@ CREATE TABLE audit.audit_logs (
   old_values  jsonb,
   new_values  jsonb,
   ip_address  inet,
-  created_at  timestamptz NOT NULL DEFAULT now()
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  event_id    varchar(80),                     -- '<šema>:<outbox id>', za idempotentan upis
+  actor_label varchar(200),
+  venue_label varchar(160),
+  PRIMARY KEY (id, created_at),
+  CONSTRAINT uq_audit_event UNIQUE (event_id, created_at)
+) PARTITION BY RANGE (created_at);
+CREATE INDEX idx_audit_created ON audit.audit_logs (created_at DESC, id DESC);
+CREATE INDEX idx_audit_venue   ON audit.audit_logs (venue_id, created_at DESC);
+CREATE INDEX idx_audit_actor   ON audit.audit_logs (actor_id, created_at DESC);
+CREATE INDEX idx_audit_action  ON audit.audit_logs (action, created_at DESC);
+CREATE TABLE audit.audit_logs_default PARTITION OF audit.audit_logs DEFAULT;
+-- Mjesečne particije (audit_logs_YYYY_MM) pravi app.ensure_month_partitions (worker, svaku noć).
+
+-- Vrijednosti filtera za admin ekran; worker ih održava, pa ekran nikad ne skenira log.
+CREATE TABLE audit.actions (
+  action     varchar(60) PRIMARY KEY,
+  first_seen timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_audit_venue ON audit.audit_logs(venue_id, created_at DESC);
+CREATE TABLE audit.actor_labels (
+  actor_id   uuid PRIMARY KEY,
+  label      varchar(200) NOT NULL,
+  updated_at timestamptz  NOT NULL
+);
+CREATE TABLE audit.venue_labels (
+  venue_id   uuid PRIMARY KEY,
+  label      varchar(160) NOT NULL,
+  updated_at timestamptz  NOT NULL
+);
 
 -- Audit log se ne može mijenjati ni brisati (NFR-25)
 CREATE FUNCTION audit.forbid_change() RETURNS trigger LANGUAGE plpgsql AS $$
@@ -815,8 +861,9 @@ CREATE TRIGGER trg_audit_immutable BEFORE UPDATE OR DELETE ON audit.audit_logs
 -- 6. REPORTING: jedna činjenica po posluženoj stavci (FR-SEF-24, 25)
 --    Puni se iz događaja 'order.served' / 'order_item.cancelled'.
 -- =====================================================================
+-- Podijeljen po mjesecima (business_date).
 CREATE TABLE reporting.order_item_facts (
-  order_item_id  uuid PRIMARY KEY,
+  order_item_id  uuid          NOT NULL,
   venue_id       uuid          NOT NULL,
   order_id       uuid          NOT NULL,
   business_date  date          NOT NULL,
@@ -833,8 +880,10 @@ CREATE TABLE reporting.order_item_facts (
   quantity       smallint      NOT NULL,
   revenue        numeric(12,2) NOT NULL,
   vat_amount     numeric(12,2) NOT NULL,
-  payment_method app.payment_method
-);
+  payment_method app.payment_method,
+  PRIMARY KEY (order_item_id, business_date)
+) PARTITION BY RANGE (business_date);
+CREATE TABLE reporting.order_item_facts_default PARTITION OF reporting.order_item_facts DEFAULT;
 CREATE INDEX idx_facts_venue_date ON reporting.order_item_facts(venue_id, business_date);
 CREATE INDEX idx_facts_item       ON reporting.order_item_facts(venue_id, item_id, business_date);
 CREATE INDEX idx_facts_member     ON reporting.order_item_facts(venue_id, member_id, business_date);
@@ -860,15 +909,17 @@ END $$;
 -- =====================================================================
 ALTER TABLE core.venues ENABLE ROW LEVEL SECURITY;
 ALTER TABLE core.venues FORCE ROW LEVEL SECURITY;
+-- Samo jednakost (bez "OR super admin"), da indeksi na venue_id rade. Rad na nivou platforme
+-- ide kroz svc_<modul>_platform (BYPASSRLS), vidi odjeljak 9.
 CREATE POLICY tenant_isolation ON core.venues
-  USING (id = app.current_venue_id() OR app.is_super_admin())
-  WITH CHECK (id = app.current_venue_id() OR app.is_super_admin());
+  USING (id = app.current_venue_id())
+  WITH CHECK (id = app.current_venue_id());
 
 DO $$
 DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
-    'core.venue_modules','core.venue_payment_methods','core.venue_opening_hours','core.venue_networks',
+    'core.venue_modules','core.venue_payment_methods','core.venue_opening_hours','core.venue_networks','core.staff_devices',
     'core.venue_roles','core.venue_members','core.shifts','core.areas','core.tables',
     'core.member_area_assignments','core.prep_stations',
     'catalog.menus','catalog.menu_schedules','catalog.categories','catalog.category_translations',
@@ -884,10 +935,20 @@ BEGIN
     EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('ALTER TABLE %s FORCE ROW LEVEL SECURITY', t);
     EXECUTE format('CREATE POLICY tenant_isolation ON %s
-       USING (venue_id = app.current_venue_id() OR app.is_super_admin())
-       WITH CHECK (venue_id = app.current_venue_id() OR app.is_super_admin())', t);
+       USING (venue_id = app.current_venue_id())
+       WITH CHECK (venue_id = app.current_venue_id())', t);
   END LOOP;
 END $$;
+
+-- Indeksi koji počinju s venue_id za tabele koje se čitaju po lokalu (migracija 20261004100000).
+CREATE INDEX idx_push_subscriptions_venue   ON ordering.push_subscriptions (venue_id);
+CREATE INDEX idx_menus_venue                ON catalog.menus (venue_id);
+CREATE INDEX idx_categories_venue           ON catalog.categories (venue_id, sort_order);
+CREATE INDEX idx_modifier_groups_venue      ON catalog.modifier_groups (venue_id);
+CREATE INDEX idx_modifier_options_venue     ON catalog.modifier_options (venue_id);
+CREATE INDEX idx_item_modifier_groups_venue ON catalog.item_modifier_groups (venue_id);
+CREATE INDEX idx_shifts_venue               ON core.shifts (venue_id);
+CREATE INDEX idx_member_areas_venue         ON core.member_area_assignments (venue_id);
 
 -- =====================================================================
 -- 9. DB ROLE PO SERVISU (svaki vidi samo svoju šemu)
@@ -913,6 +974,17 @@ BEGIN
   END LOOP;
 END $$;
 REVOKE UPDATE, DELETE ON audit.audit_logs FROM svc_audit;
+
+-- Platform uloge: svc_<modul>_platform (NOLOGIN, BYPASSRLS) s istim pravima kao svc_<modul>.
+-- TenantDatabase.withTenant prelazi na nju (SET LOCAL ROLE) samo za kontekst isSuperAdmin
+-- (admin ekrani, poslovi workera). Atributi uloge se ne nasljeđuju, pa svc_<modul> sam ne
+-- zaobilazi RLS. Migracija 20261003100000 kopira prava objekt po objekt.
+--   CREATE ROLE svc_ordering_platform NOLOGIN BYPASSRLS;
+--   GRANT svc_ordering_platform TO svc_ordering;
+
+-- Mjesečne particije audit loga i činjenica prodaje (SECURITY DEFINER: samo vlasnik tabele
+-- smije dodati particiju; funkcija prima samo ove dvije tabele).
+--   app.ensure_month_partitions(parent regclass, from_month date, months int) RETURNS int
 
 -- =====================================================================
 -- 9a. ODREĐIVANJE LOKALA PRIJE POZNATOG venue_id
@@ -988,6 +1060,18 @@ ALTER FUNCTION core.resolve_venue(text) OWNER TO resolver;
 ALTER FUNCTION core.resolve_table(text) OWNER TO resolver;
 REVOKE ALL ON FUNCTION core.resolve_venue(text), core.resolve_table(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION core.resolve_venue(text), core.resolve_table(text) TO svc_core;
+
+-- Zajednički uređaj (FR-KON-01): lokal se nalazi po hashu tokena uređaja, prije venue_id.
+CREATE FUNCTION core.resolve_staff_device(p_token_hash text)
+RETURNS TABLE (device_id uuid, venue_id uuid, device_name text)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog AS $$
+  SELECT d.id, d.venue_id, d.name::text
+  FROM core.staff_devices d
+  WHERE d.token_hash = p_token_hash AND d.revoked_at IS NULL
+$$;
+ALTER FUNCTION core.resolve_staff_device(text) OWNER TO resolver;
+REVOKE EXECUTE ON FUNCTION core.resolve_staff_device(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION core.resolve_staff_device(text) TO svc_core, svc_core_platform;
 
 -- =====================================================================
 -- 10. POČETNI PODACI

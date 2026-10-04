@@ -32,7 +32,6 @@ interface NavItem {
   to: '/' | '/venues' | '/users' | '/modules' | '/audit' | '/system';
   icon: LucideIcon;
   label: string;
-  soon?: boolean;
 }
 
 /** Protected area: waits for the session, sends anonymous visitors to /login. */
@@ -91,7 +90,7 @@ function AppShell() {
       title: t('nav.sectionOperations'),
       items: [
         { to: '/audit', icon: ScrollText, label: t('nav.audit') },
-        { to: '/system', icon: Activity, label: t('nav.system'), soon: true },
+        { to: '/system', icon: Activity, label: t('nav.system') },
       ],
     },
   ];
@@ -173,7 +172,6 @@ function AppShell() {
 }
 
 function NavLink({ item, onNavigate }: { item: NavItem; onNavigate: () => void }) {
-  const { t } = useTranslation();
   const Icon = item.icon;
   return (
     <Link
@@ -188,11 +186,6 @@ function NavLink({ item, onNavigate }: { item: NavItem; onNavigate: () => void }
         aria-hidden
       />
       <span className="flex-1">{item.label}</span>
-      {item.soon && (
-        <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/60">
-          {t('common.comingSoon')}
-        </span>
-      )}
     </Link>
   );
 }

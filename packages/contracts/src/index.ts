@@ -12,3 +12,4 @@ export * from './tables.js';
 export * from './users.js';
 export * from './venue-settings.js';
 export * from './venues.js';
+export * from './monitoring.js';

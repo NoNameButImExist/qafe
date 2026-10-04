@@ -1,24 +1,22 @@
-import type { Menu } from '@qafe/contracts';
 import { Switch } from '@qafe/ui';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { api } from '../lib/api';
 import { formatMoney } from '../lib/format';
 import { menuQuery } from '../lib/queries';
-import { useAction } from '../lib/useAction';
+import { useQueuedAction } from '../lib/useAction';
 
 /** "Nestalo" with one tap (FR-KON-22). */
 export function MenuPage() {
   const { t } = useTranslation();
   const menu = useQuery(menuQuery);
-  const queryClient = useQueryClient();
-  const toggle = useAction(async ({ id, available }: { id: string; available: boolean }) => {
-    const next = await api<Menu>(`/catalog/items/${id}/availability`, {
-      method: 'PATCH',
-      body: { available },
-    });
-    queryClient.setQueryData(menuQuery.queryKey, next);
-  });
+  // Works without internet too (queued, NFR-05); the menu refetches once it is sent.
+  const toggle = useQueuedAction(({ id, available }: { id: string; available: boolean }) => ({
+    method: 'PATCH',
+    path: `/catalog/items/${id}/availability`,
+    body: { available },
+    patch: { id, fields: { isAvailable: available } },
+    label: t('menu.title'),
+  }));
 
   if (!menu.data) return <p className="p-6 text-sm text-muted">{t('common.loading')}</p>;
   const categories = menu.data.categories.filter((c) => c.isActive && c.items.length > 0);

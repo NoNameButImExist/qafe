@@ -23,6 +23,7 @@ import {
   UpdateTableRequest,
   type CreateStaffInput,
   type CreateTablesBulkInput,
+  type StaffDevice,
   type SetStaffPasswordInput,
   type VenueSpace,
   type VenueStaff,
@@ -35,6 +36,7 @@ import {
 } from '../../../common/auth/auth.guard.js';
 import { ZodPipe } from '../../../common/zod.pipe.js';
 import { SpaceService } from '../space/space.service.js';
+import { StaffDevicesService } from '../staff/staff-devices.service.js';
 import { StaffService } from '../staff/staff.service.js';
 
 const uuid = new ParseUUIDPipe();
@@ -175,5 +177,24 @@ export class VenueStaffController {
     @Param('memberId', uuid) memberId: string,
   ): Promise<VenueStaff> {
     return this.staffService.setPin(staff, memberId, null);
+  }
+}
+
+/** Shared devices linked for PIN sign-in (FR-KON-01): list and revoke. */
+@Controller('venue/staff-devices')
+@UseGuards(StaffGuard)
+@RequirePermission('staff.manage')
+export class VenueStaffDevicesController {
+  constructor(private readonly devices: StaffDevicesService) {}
+
+  @Get()
+  list(@CurrentStaff() staff: StaffClaims): Promise<StaffDevice[]> {
+    return this.devices.list(staff);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  revoke(@CurrentStaff() staff: StaffClaims, @Param('id', uuid) id: string): Promise<void> {
+    return this.devices.revoke(staff, id);
   }
 }

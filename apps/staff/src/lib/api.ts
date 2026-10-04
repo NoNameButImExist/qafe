@@ -1,5 +1,6 @@
 import { ApiErrorBody, type StaffSession } from '@qafe/contracts';
 import i18n from '../i18n';
+import { reportNetwork } from './network';
 
 const BASE_URL: string = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api';
 
@@ -32,14 +33,27 @@ export const session = {
   },
 };
 
+/** The refresh failed because the API could not be reached (not because the session ended). */
+let lastRefreshOffline = false;
+export const refreshFailedOffline = () => lastRefreshOffline;
+
 /** Exchanges the staff refresh cookie for a new access token. Concurrent calls share one request. */
 export function refreshSession(): Promise<StaffSession | null> {
   refreshing ??= (async () => {
     try {
-      const res = await fetch(`${BASE_URL}/auth/staff/refresh`, {
-        method: 'POST',
-        credentials: 'include',
-      });
+      let res: Response;
+      try {
+        res = await fetch(`${BASE_URL}/auth/staff/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+      } catch {
+        lastRefreshOffline = true;
+        reportNetwork(false);
+        return null;
+      }
+      lastRefreshOffline = false;
+      reportNetwork(true);
       if (!res.ok) {
         accessToken = null;
         return null;
@@ -63,6 +77,8 @@ interface RequestOptions {
   form?: FormData;
   query?: Record<string, string | number | undefined>;
   retried?: boolean;
+  /** Give up after this long and treat it as a network error (a connection that hangs). */
+  timeoutMs?: number;
 }
 
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -72,8 +88,11 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   }
 
   let res: Response;
+  const controller = options.timeoutMs ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), options.timeoutMs) : null;
   try {
     res = await fetch(url, {
+      signal: controller?.signal,
       method: options.method ?? 'GET',
       credentials: 'include',
       headers: {
@@ -83,11 +102,17 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
       body: options.form ?? (options.body !== undefined ? JSON.stringify(options.body) : undefined),
     });
   } catch {
+    reportNetwork(false);
     throw new ApiError(0, 'network', 'Network error');
+  } finally {
+    if (timer) clearTimeout(timer);
   }
+  reportNetwork(true);
 
   if (res.status === 401 && !options.retried && !path.startsWith('/auth/')) {
     if (await refreshSession()) return api<T>(path, { ...options, retried: true });
+    // Unreachable is not signed out: keep the member in, the request just failed.
+    if (refreshFailedOffline()) throw new ApiError(0, 'network', 'Network error');
     onSessionExpired?.();
   }
 

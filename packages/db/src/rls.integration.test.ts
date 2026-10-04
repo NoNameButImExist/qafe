@@ -1,3 +1,4 @@
+import { sql } from 'kysely';
 // NFR-09: a venue never sees another venue's data. Runs against real Postgres (Testcontainers).
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -72,6 +73,42 @@ describe('row level security', () => {
   it('super admin sees every venue', async () => {
     const rows = await orderVenues(ordering, null, true);
     expect(rows.map((r) => r.venue_id).sort()).toEqual([VENUE_A, VENUE_B]);
+  });
+
+  it('tenant queries are served by the venue index, not a scan of every venue', async () => {
+    // With "venue_id = current OR super admin" Postgres could not use any venue_id index.
+    const plan = await ordering.withTenant(
+      { venueId: VENUE_A, isSuperAdmin: false },
+      async (trx) => {
+        await sql`set local enable_seqscan = off`.execute(trx);
+        const { rows } = await sql<{
+          'QUERY PLAN': string;
+        }>`explain select id from ordering.orders`.execute(trx);
+        return rows.map((r) => r['QUERY PLAN']).join('\n');
+      },
+    );
+    expect(plan).toMatch(/Index/);
+    expect(plan).not.toMatch(/Seq Scan/);
+  });
+
+  it('the super admin setting alone does not open other venues', async () => {
+    // Only the platform role (switched to by withTenant) bypasses the policies.
+    const rows = await ordering.withTenant(
+      { venueId: VENUE_A, isSuperAdmin: false },
+      async (trx) => {
+        await sql`select set_config('app.is_super_admin', 'true', true)`.execute(trx);
+        return trx.selectFrom('ordering.orders').select('venue_id').execute();
+      },
+    );
+    expect(rows.map((r) => r.venue_id)).toEqual([VENUE_A]);
+  });
+
+  it("a module cannot switch to another module's platform role", async () => {
+    await expect(
+      ordering.withTenant({ venueId: VENUE_A, isSuperAdmin: false }, (trx) =>
+        sql`set local role svc_core_platform`.execute(trx),
+      ),
+    ).rejects.toThrow(/permission denied/);
   });
 
   it('venue A cannot write rows for venue B', async () => {

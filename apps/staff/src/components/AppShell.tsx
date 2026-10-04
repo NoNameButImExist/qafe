@@ -6,9 +6,11 @@ import {
   ClipboardList,
   LoaderCircle,
   LogOut,
+  MonitorSmartphone,
   UtensilsCrossed,
   Volume2,
   VolumeX,
+  WifiOff,
 } from 'lucide-react';
 import { AnimatePresence, m } from 'motion/react';
 import { useEffect, useState } from 'react';
@@ -18,6 +20,8 @@ import { NoticeContext } from '../lib/notice';
 import { tellServiceWorkerLanguage } from '../lib/push';
 import { floorQuery, ordersQuery } from '../lib/queries';
 import { connectRealtime, useLive } from '../lib/realtime';
+import { useOnline } from '../lib/network';
+import { persistSnapshots, startSync, useQueue } from '../lib/offline';
 import {
   readyConfirmed,
   setReadyConfirmed,
@@ -26,8 +30,11 @@ import {
   useSoundEnabled,
 } from '../lib/sound';
 import { errorKey } from '../lib/api';
+import { formatTime } from '../lib/format';
 import { useAuth, useCan, useStaff } from '../lib/useAuth';
+import { DeviceSheet } from './DeviceSheet';
 import { ReadyGate } from './ReadyGate';
+import { isPinSession, PIN_IDLE_LOCK_MS } from '../lib/device';
 
 /** Protected area with the app chrome. */
 export function ProtectedLayout() {
@@ -93,12 +100,53 @@ function AppShell() {
   useEffect(() => {
     if (ready) unlockOnFirstInteraction();
   }, [ready]);
+  const canManageStaff = useCan('staff.manage');
+  const [deviceOpen, setDeviceOpen] = useState(false);
+  // A PIN session on a shared device locks itself after a while without a touch (FR-KON-01).
+  useEffect(() => {
+    if (!isPinSession()) return;
+    let timer = setTimeout(() => void logout(), PIN_IDLE_LOCK_MS);
+    const touch = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => void logout(), PIN_IDLE_LOCK_MS);
+    };
+    const events = ['pointerdown', 'keydown', 'scroll'] as const;
+    events.forEach((e) => window.addEventListener(e, touch, { passive: true }));
+    return () => {
+      clearTimeout(timer);
+      events.forEach((e) => window.removeEventListener(e, touch));
+    };
+  }, [logout]);
   const canSeeOrders = useCan('orders.view');
   const canMenu = useCan('menu.availability', 'menu.edit');
   const floor = useQuery({ ...floorQuery, enabled: canSeeOrders });
   const orders = useQuery({ ...ordersQuery, enabled: canSeeOrders });
 
   useEffect(() => connectRealtime(queryClient), [queryClient]);
+  // NFR-05: last state on screen without internet, one-tap actions queued and sent later.
+  const venueId = staff.venue.id;
+  useEffect(() => persistSnapshots(queryClient, venueId), [queryClient, venueId]);
+  useEffect(
+    () =>
+      startSync(queryClient, venueId, (report) => {
+        void queryClient.invalidateQueries();
+        if (report.refused.length > 0) {
+          setNotice({
+            tone: 'error',
+            text: t('offline.refused', {
+              count: report.refused.length,
+              what: report.refused.map((r) => r.label).join(', '),
+            }),
+          });
+        } else {
+          setNotice({ tone: 'success', text: t('offline.synced', { count: report.sent }) });
+        }
+      }),
+    [queryClient, venueId, setNotice, t],
+  );
+  const online = useOnline();
+  const queued = useQueue();
+  const snapshotAt = queryClient.getQueryState(['floor'])?.dataUpdatedAt;
   useEffect(() => tellServiceWorkerLanguage(i18n.language), [i18n.language, ready]);
 
   const newOrders = orders.data?.orders.filter((o) => o.status === 'new').length ?? 0;
@@ -175,16 +223,55 @@ function AppShell() {
               {sound ? <Volume2 className="size-5" /> : <VolumeX className="size-5" />}
             </button>
             <LanguageSwitch />
+            {canManageStaff && (
+              <button
+                type="button"
+                onClick={() => setDeviceOpen(true)}
+                aria-label={t('pin.linkTitle')}
+                title={t('pin.linkTitle')}
+                className="grid size-11 place-items-center rounded-xl text-white/70 hover:bg-white/10 hover:text-white"
+              >
+                <MonitorSmartphone className="size-[18px]" />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => void logout()}
-              aria-label={t('nav.logout')}
+              aria-label={isPinSession() ? t('pin.lock') : t('nav.logout')}
+              title={isPinSession() ? t('pin.lock') : t('nav.logout')}
               className="grid size-11 place-items-center rounded-xl text-white/70 hover:bg-white/10 hover:text-white"
             >
               <LogOut className="size-[18px]" />
             </button>
           </div>
         </header>
+        {(!online || queued.pending > 0) && (
+          // Opaque base under the tint: the list scrolls beneath this bar.
+          <div role="status" className="sticky top-16 z-20 bg-canvas shadow-sm">
+            <div
+              className={cn(
+                'flex items-center gap-2 px-4 py-2 text-[13px] font-semibold lg:px-8',
+                online ? 'bg-primary/12 text-accent' : 'bg-amber-400/25 text-ink',
+              )}
+            >
+              {online ? (
+                <LoaderCircle className="size-4 animate-spin" aria-hidden />
+              ) : (
+                <WifiOff className="size-4 shrink-0" aria-hidden />
+              )}
+              <span className="min-w-0">
+                {online
+                  ? t('offline.syncing', { count: queued.pending })
+                  : t('offline.banner', {
+                      time: snapshotAt ? formatTime(new Date(snapshotAt).toISOString()) : '—',
+                    })}
+                {!online &&
+                  queued.pending > 0 &&
+                  ` · ${t('offline.pending', { count: queued.pending })}`}
+              </span>
+            </div>
+          </div>
+        )}
         <div className="fixed inset-x-0 top-[4.5rem] z-40 mx-auto max-w-3xl px-4 lg:pl-64">
           <div className={notice ? 'rounded-xl bg-surface shadow-lg' : undefined}>
             <Notice notice={notice} />
@@ -280,6 +367,7 @@ function AppShell() {
           </div>
         </nav>
 
+        <DeviceSheet open={deviceOpen} onClose={() => setDeviceOpen(false)} />
         {!ready && (
           <ReadyGate
             onReady={() => {

@@ -4,14 +4,14 @@ import { AuditWriter } from './audit-writer.js';
 import { loadConfig } from './config.js';
 import { createHealthServer } from './health.js';
 import { OutboxRelay, type OutboxEvent } from './outbox-relay.js';
-import { startTelemetry } from '@qafe/observability';
+import { packageVersion, startTelemetry } from '@qafe/observability';
 import { createRedis } from '@qafe/redis';
 import { startJobs } from './jobs.js';
 import { PushNotifier } from './push-notifier.js';
 import { ReportingWriter } from './reporting-writer.js';
 
 const config = loadConfig();
-const telemetry = startTelemetry('qafe-worker', process.env.npm_package_version ?? 'unknown');
+const telemetry = startTelemetry('qafe-worker', packageVersion(import.meta.url));
 const relayed = telemetry.meter.createCounter('qafe.outbox.events', {
   description: 'Outbox events relayed to the audit log, reports and pushes',
 });
@@ -79,7 +79,7 @@ const redis = createRedis(
 );
 const jobs = await startJobs(
   redis,
-  { core, catalog, ordering, billing },
+  { core, catalog, ordering, billing, audit, reporting },
   { abandonAfterMinutes: config.ABANDON_AFTER_MINUTES, log: (m) => console.log(m) },
 );
 
@@ -93,7 +93,7 @@ relay.start();
 const server = createHealthServer();
 server.listen(config.PORT, '0.0.0.0');
 console.log(
-  `[worker] relaying ${sources.map((s) => `${s.schema}.outbox`).join(', ')} every ${config.OUTBOX_POLL_MS} ms; web push ${push ? 'on' : 'off (no VAPID keys)'}; jobs: close-abandoned-sessions (5 min), purge-expired (03:30); health on :${config.PORT}`,
+  `[worker] relaying ${sources.map((s) => `${s.schema}.outbox`).join(', ')} every ${config.OUTBOX_POLL_MS} ms; web push ${push ? 'on' : 'off (no VAPID keys)'}; jobs: close-abandoned-sessions (5 min), ensure-partitions (03:15), purge-expired (03:30); health on :${config.PORT}`,
 );
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {

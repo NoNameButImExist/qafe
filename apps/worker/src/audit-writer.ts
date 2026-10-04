@@ -140,6 +140,8 @@ export function toAuditRow(event: OutboxEvent): AuditRow {
         ip_address: e.ip,
         venue_id: e.venueId ?? null,
         venue_label: e.venueName ?? null,
+        new_values:
+          e.method === 'pin' ? json({ method: 'pin', device: e.deviceName ?? null }) : null,
       };
     case 'user.blocked':
     case 'user.unblocked':
@@ -161,6 +163,8 @@ export function toAuditRow(event: OutboxEvent): AuditRow {
     case 'table.updated':
     case 'table.deleted':
     case 'table.qr_rotated':
+    case 'staff_device.linked':
+    case 'staff_device.revoked':
       return {
         ...base,
         ...actor,
@@ -193,12 +197,80 @@ export class AuditWriter {
   readonly handle = async (events: OutboxEvent[]): Promise<void> => {
     const audited = events.filter(isAudited);
     if (audited.length === 0) return;
-    await this.db.withTenant({ venueId: null, isSuperAdmin: false }, (trx) =>
-      trx
+    const rows = audited.map(toAuditRow);
+    await this.db.withTenant({ venueId: null, isSuperAdmin: false }, async (trx) => {
+      // created_at is the event's own time, so a redelivered event meets its first copy.
+      await trx
         .insertInto('audit.audit_logs')
-        .values(audited.map(toAuditRow))
-        .onConflict((oc) => oc.column('event_id').doNothing())
-        .execute(),
-    );
+        .values(rows)
+        .onConflict((oc) => oc.columns(['event_id', 'created_at']).doNothing())
+        .execute();
+
+      // Filter values for the admin screen, so it never scans the log itself.
+      const actions = [...new Set(rows.map((r) => r.action))];
+      await trx
+        .insertInto('audit.actions')
+        .values(actions.map((action) => ({ action })))
+        .onConflict((oc) => oc.column('action').doNothing())
+        .execute();
+      const actors = latestLabels(
+        rows,
+        (r) => r.actor_id,
+        (r) => r.actor_label,
+      );
+      if (actors.length > 0) {
+        await trx
+          .insertInto('audit.actor_labels')
+          .values(actors.map((a) => ({ actor_id: a.id, label: a.label, updated_at: a.at })))
+          .onConflict((oc) =>
+            oc
+              .column('actor_id')
+              .doUpdateSet((eb) => ({
+                label: eb.ref('excluded.label'),
+                updated_at: eb.ref('excluded.updated_at'),
+              }))
+              .whereRef('audit.actor_labels.updated_at', '<=', 'excluded.updated_at'),
+          )
+          .execute();
+      }
+      const venues = latestLabels(
+        rows,
+        (r) => r.venue_id,
+        (r) => r.venue_label,
+      );
+      if (venues.length > 0) {
+        await trx
+          .insertInto('audit.venue_labels')
+          .values(venues.map((v) => ({ venue_id: v.id, label: v.label, updated_at: v.at })))
+          .onConflict((oc) =>
+            oc
+              .column('venue_id')
+              .doUpdateSet((eb) => ({
+                label: eb.ref('excluded.label'),
+                updated_at: eb.ref('excluded.updated_at'),
+              }))
+              .whereRef('audit.venue_labels.updated_at', '<=', 'excluded.updated_at'),
+          )
+          .execute();
+      }
+    });
   };
+}
+
+/** The newest label per id within one batch. */
+function latestLabels(
+  rows: AuditRow[],
+  id: (row: AuditRow) => string | null | undefined,
+  label: (row: AuditRow) => string | null | undefined,
+): { id: string; label: string; at: Date }[] {
+  const latest = new Map<string, { id: string; label: string; at: Date }>();
+  for (const row of rows) {
+    const key = id(row);
+    const text = label(row);
+    if (!key || !text) continue;
+    const at = new Date(row.created_at as string | Date);
+    const seen = latest.get(key);
+    if (!seen || seen.at <= at) latest.set(key, { id: key, label: text, at });
+  }
+  return [...latest.values()];
 }

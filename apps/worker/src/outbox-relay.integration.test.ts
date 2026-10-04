@@ -5,7 +5,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AuditWriter, isAudited } from './audit-writer.js';
 import { OutboxRelay } from './outbox-relay.js';
-import { closeAbandonedSessions, purgeExpired } from './maintenance.js';
+import { closeAbandonedSessions, ensurePartitions, purgeExpired } from './maintenance.js';
 import { PushNotifier } from './push-notifier.js';
 import { ReportingWriter } from './reporting-writer.js';
 
@@ -84,6 +84,9 @@ describe('outbox relay → audit log', () => {
     await admin.query('UPDATE core.outbox SET published_at = NULL');
     expect(await relay.drain()).toBe(2);
     expect(await count('SELECT count(*) AS n FROM audit.audit_logs')).toBe(2);
+    // The admin filters come from small tables the writer keeps, not from the log.
+    expect(await count('SELECT count(*) AS n FROM audit.actions')).toBeGreaterThanOrEqual(1);
+    expect(await count('SELECT count(*) AS n FROM audit.venue_labels')).toBeGreaterThanOrEqual(1);
   });
 
   it('leaves events unpublished when the handler fails, and retries them', async () => {
@@ -226,13 +229,15 @@ describe('report facts (FR-SEF-24)', () => {
 
 describe('maintenance jobs', () => {
   it('closes only idle tables without orders, and purges old rows', async () => {
-    const connect = (m: 'core' | 'catalog' | 'ordering' | 'billing') =>
+    const connect = (m: 'core' | 'catalog' | 'ordering' | 'billing' | 'audit' | 'reporting') =>
       new TenantDatabase(testDb.connection(m));
     const dbs = {
       core: connect('core'),
       catalog: connect('catalog'),
       ordering: connect('ordering'),
       billing: connect('billing'),
+      audit: connect('audit'),
+      reporting: connect('reporting'),
     };
     try {
       const venue = await admin.query<{ id: string }>(
@@ -320,6 +325,18 @@ describe('maintenance jobs', () => {
       expect((await admin.query(`SELECT 1 FROM core.outbox WHERE event_type = 'y'`)).rowCount).toBe(
         1,
       );
+
+      // Monthly partitions: this month and the next three exist after one run; a second run
+      // creates nothing.
+      await ensurePartitions(dbs);
+      expect(await ensurePartitions(dbs)).toBe(0);
+      const months = await admin.query<{ name: string }>(
+        `SELECT c.relname AS name FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid
+         WHERE i.inhparent = 'audit.audit_logs'::regclass
+           AND c.relname >= 'audit_logs_' || to_char(now(), 'YYYY_MM')
+           AND c.relname <> 'audit_logs_default'`,
+      );
+      expect(months.rows.length).toBeGreaterThanOrEqual(4);
     } finally {
       await Promise.all(Object.values(dbs).map((d) => d.close()));
     }

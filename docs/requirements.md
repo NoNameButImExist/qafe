@@ -282,12 +282,99 @@ Worker sada osim outbox releja pokreće i zakazane poslove. Raspored je u Redisu
 - **Stolovi:** sažetak na vrhu (čeka uslugu, traži račun, zauzet, slobodan). Pločice stolova imaju traku u boji statusa, broj gostiju, koliko je sto otvoren i jasno označene signale (nova narudžba, poziv, uređaj čeka, prijava). Stolovi kojima treba konobar blago pulsiraju, a slobodni su prikazani isprekidanim okvirom, da se zauzeti ističu.
 - **Narudžbe:** animirani filter, kartice s bojom statusa na lijevom rubu, broj stola kao veliki tamni bedž (dodir vodi na sto) i vrijeme čekanja koje postaje narandžasto nakon 5 minuta i crveno nakon 10. Prihvaćene i završene narudžbe animirano izlaze iz liste. Na širokom ekranu su narudžbe u dvije kolone.
 
+## Urađeno u verziji 0.6 (4. 10. 2026.)
+
+U ovoj fazi je cilj bio pripremiti sistem za rast (hiljadu lokala i više) i za rad u lokalu kad internet zakaže. Dio izmjena je nastao iz testa opterećenja.
+
+### Audit log i izvještaji za veliki broj lokala (NFR-25)
+
+- **Problem:** audit log i činjenice prodaje (`reporting.order_item_facts`) rastu bez kraja. Kod 1000 lokala to je oko 0,5 do 1 milion redova audit loga dnevno, odnosno 100 do 250 GB godišnje. Admin stranica je pri svakom otvaranju prebrojavala cijeli log i čitala ga cijelog za padajuće filtere.
+- **Podjela po mjesecima:** obje tabele su podijeljene na mjesečne particije (`audit_logs_2026_10` i slično). Upit za zadnje dane čita samo nove mjesece. Worker svake noći u 03:15 pravi particije za naredna 4 mjeseca, a rezervna (DEFAULT) particija hvata sve ostalo, pa upis nikad ne pada.
+- **Admin stranica:** nema više brojeva stranica ni prebrojavanja. Zapisi se učitavaju dugmetom „Učitaj starije", koje uvijek čita samo jedan dio indeksa. Filteri (akcije, osobe, lokali) dolaze iz tri male tabele koje worker održava (`audit.actions`, `audit.actor_labels`, `audit.venue_labels`).
+- **Arhiviranje:** mjeseci stariji od `AUDIT_RETENTION_MONTHS` (default 24, najmanje 12 zbog NFR-25) izvoze se šifrovani u `s3://<bucket>/audit/`. Particija se odvaja iz baze tek kad je provjereno da je kopija u S3 iste veličine. Redovi se nikad ne brišu pojedinačno, pa pravilo „samo upis" ostaje. Arhiviranje radi svaku noć u backup servisu, a ručno se pokreće s `make audit-archive`.
+- **Testirano:** migracija i njeno vraćanje (podaci ostaju), idempotentan upis istog događaja, filteri, arhiviranje probnog mjeseca (šifrovan CSV u S3, particija uklonjena).
+
+### Vraćanje baze na tačan trenutak (NFR-24)
+
+- Postgres sada svaku promjenu (WAL) šalje u pgBackRest repozitorij, najkasnije svakih 60 sekundi (`PITR_ARCHIVE_TIMEOUT`). Novi servis `pitr` pravi pune backupe nedjeljom, a razlike ostalim danima u 03:00. Repozitorij je šifrovan (AES-256, `PITR_PASSPHRASE`).
+- Najveći mogući gubitak podataka je tako oko 1 minute, umjesto do 24 sata (zahtjev je 15 minuta). Noćni `pg_dump` iz verzije 0.5 ostaje kao druga, prenosiva kopija.
+- **Zašto pgBackRest, a ne WAL-G:** WAL-G se izdaje samo za glibc sisteme, a naša Postgres slika je Alpine. Prelazak na drugu sliku bi tražio ponovno građenje indeksa (drugačije sortiranje teksta). pgBackRest je u Alpine paketima.
+- **Lokalno i na serveru:** lokalno je repozitorij Docker volume, a na serveru S3 (`PITR_REPO_TYPE=s3`, varijable `PITR_S3_*`). pgBackRest za S3 traži HTTPS, pa lokalni MinIO bez TLS-a nije opcija.
+- **Komande:** `make pitr-info` prikazuje backupe i pokriveni period. `make pitr-backup type=full|diff` pravi backup odmah. `make pitr-restore-test at="2026-10-04 08:00:00+02"` vraća bazu na zadani trenutak u zaseban direktorij, pokrene je, ispiše broj zapisa i obriše je. Živa baza se pri tome ne dira.
+- **Testirano:** probni lokal je obrisan iz žive baze, a kopija vraćena na trenutak prije brisanja ga je sadržavala.
+- Ako arhiva nije dostupna, Postgres najviše 4 GB promjena čuva u redu čekanja (`PITR_QUEUE_MAX`), a onda ih odbacuje umjesto da napuni disk. Sljedeći backup tada počinje novi lanac.
+
+### Test opterećenja i šta je on otkrio (NFR-02, NFR-03, NFR-13)
+
+- **Alat:** k6 iz Docker slike, bez instalacije u projekat.
+  - `make loadtest-seed` pravi testne lokale `lt-001`, `lt-002`… sa stolovima, menijem i šefom.
+  - `make loadtest` pokreće test: svaki „telefon" je domaćin za jednim stolom i naručuje svakih 10 do 30 sekundi, a jedan „konobar" po lokalu prima narudžbe.
+  - `make loadtest-clean` sve briše.
+  - Veličina se zadaje s `LT_VENUES`, `LT_TABLES` i `LT_DURATION`.
+- **Rezultati na laptopu** (sve servise u Dockeru, jedan API proces):
+
+  | Opterećenje | API p95 | konobar vidi narudžbu (p95) | greške |
+  | --- | --- | --- | --- |
+  | 20 lokala, 200 telefona, ~7,6 narudžbi/s | 17 ms | 0,98 s | 0 % |
+  | 100 lokala, 2000 telefona, ~70 narudžbi/s, prije ispravke | 1,56 s | 4,8 s | 0 % |
+  | isto, poslije ispravke RLS-a | 0,43 s | 1,37 s | 0 % |
+  | isto, 3 API procesa | 0,80 s | 2,53 s | 0 % |
+
+  NFR-13 traži 20.000 narudžbi dnevno za 100 lokala. Prvi red već nosi oko 27.000 narudžbi na sat.
+
+  Tri API procesa su na laptopu bila sporija od jednog. Docker ima 8 jezgara, a dijele ih Postgres (oko 2,6 jezgre), k6 s 2100 virtuelnih korisnika, Traefik, nadzor i API procesi. Dodatni procesi se zato bore za iste jezgre i bazu. Korist od više procesa treba izmjeriti na pravom serveru, gdje baza i API nisu na istom procesoru. Preporuka za produkciju je početi s jednim procesom i povećavati ga prema ekranu „Nadzor sistema".
+- **Glavni nalaz (RLS bez indeksa):** pravilo izolacije lokala bilo je `venue_id = lokal OR super_admin`. Zbog tog „OR" Postgres nije mogao koristiti nijedan indeks, pa je svaki upit čitao redove svih lokala.
+  - **Ispravka:** pravila su sada samo `venue_id = lokal`, pa ih indeksi služe. Rad na nivou platforme (admin ekrani, poslovi workera) ide kroz posebnu ulogu `svc_<modul>_platform` (BYPASSRLS, ista prava kao modul). Na nju se prelazi samo u kontekstu super admina.
+  - **Sigurnost:** granica ostaje ista kao prije. Novi testovi provjeravaju da upit lokala koristi indeks, da sama postavka super admina više ništa ne otvara i da modul ne može preći na tuđu platform ulogu.
+- **Indeksi po lokalu:** dodani na tabele koje se čitaju po lokalu, a nisu ih imale (otvoreni stolovi, katalog, push pretplate…). Traženje otvorenih stolova pada s 1,2 ms na 0,09 ms.
+- **Više API procesa:** jedan Node proces koristi jedno jezgro, pa je opterećenje od 70 narudžbi/s na granici. `API_REPLICAS` pokreće više procesa iza Traefika; stanje je u Postgresu i Redisu. Sticky cookie (`qafe_lb`) drži zamjensku vezu za realtime na istom procesu. `DB_POOL_MAX` i `POSTGRES_MAX_CONNECTIONS` (300) drže broj konekcija pod kontrolom.
+- **Usput popravljeno:**
+  - Redis je mogao izbaciti ključeve reda poslova kad mu nestane memorije. Sada izbacuje samo ključeve s rokom trajanja (`volatile-lru`).
+  - Worker svakih 10 minuta ponovo prijavljuje zakazane poslove, jer ih restart Redisa briše.
+  - Uključene su statistike upita (`pg_stat_statements`) za traženje sporih upita.
+
+### Staff aplikacija bez interneta (NFR-05)
+
+- **Zadnje stanje:** stolovi, narudžbe, otvoreni stolovi, meni i KDS se čuvaju na uređaju. Bez veze se prikazuju s trakom „Nema veze s internetom. Prikazano stanje od 14:32." Kopija starija od 12 sati se ne prikazuje, a odjava je briše.
+- **Red akcija:** bez veze se čuvaju i odmah prikazuju na ekranu akcije na jedan dodir: prihvati, posluži, zahtjev primljen/riješen, KDS spremno/poništi/počni i dostupnost artikla. Šalju se redom čim se veza vrati: na događaj „online", svake 3 sekunde dok nešto čeka i poslije svakog uspješnog zahtjeva. Tako je cilj od 5 sekundi ispunjen.
+  - Zahtjev koji visi (Wi-Fi bez interneta) se prekida poslije 8 sekundi i ide u red.
+  - Ako server akciju kasnije odbije jer se stanje u međuvremenu promijenilo, konobar dobije poruku koja je akcija u pitanju.
+- **Šta i dalje traži vezu:** naplata, otkazivanje, izmjene narudžbe, ručna narudžba i odobravanje uređaja. Ovisne su o tačnom trenutnom stanju ili o novcu.
+- **Ponovno otvaranje bez interneta:** service worker čuva aplikaciju. Prijava ostaje kad osvježavanje sesije padne zbog mreže (ne zbog isteka): zadnji profil se pamti, a sesija se osvježi čim server odgovori.
+- **Testirano u browseru:** narudžba prihvaćena bez veze poslana je i upisana na serveru (`accepted_by` = konobar) nekoliko sekundi nakon povratka veze. Ponovno otvaranje bez interneta prikazuje zadnje stanje.
+
+### Prijava PIN-om na zajedničkom uređaju (FR-KON-01)
+
+- **Povezivanje:** šef se na tabletu prijavi lozinkom i u aplikaciji za osoblje otvori „Ovaj uređaj" (ikona u gornjoj traci), upiše naziv (npr. „Tablet šank") i poveže uređaj. Uređaj dobije dugi nasumični token u httpOnly cookie-ju (`qafe_sdev`), a u bazi (`core.staff_devices`) je samo njegov hash.
+- **Prijava:** na povezanom uređaju ekran za prijavu prikazuje imena osoblja koje ima PIN. Dodir na ime i PIN na velikoj tastaturi prijavljuju člana. Prijava lozinkom ostaje dostupna jednim dodirom. Prijava PIN-om ne traži promjenu privremene lozinke, jer lozinka nije korištena.
+- **Zaštita:**
+  - Bez cookie-ja uređaja PIN ne vrijedi ništa.
+  - Pokušaji su ograničeni po uređaju i osobi (5 u 15 minuta) i po uređaju (20).
+  - Sesija na zajedničkom uređaju se sama zaključava poslije 5 minuta bez dodira.
+  - Prijava ide u audit log s oznakom PIN-a i naziva uređaja.
+- **Upravljanje:** šef u panelu (Osoblje → Uređaji za prijavu PIN-om) vidi povezane uređaje i zadnju prijavu, i može ih ukloniti. Uklonjen uređaj više ne prikazuje imena niti prijavljuje. Povezivanje i uklanjanje idu u audit log.
+
+### Ekran nadzora u admin panelu (FR-ADM-17, FR-ADM-18)
+
+- Stranica „Nadzor sistema" u admin panelu prikazuje sljedeće:
+  - servise (API, worker, Traefik, OTel collector, Prometheus): radi/ne javlja se, verzija, broj instanci, vrijeme rada, CPU i memorija;
+  - po modulu: zahtjeve u sekundi, p50, p95 i p99, te postotak grešaka 5xx;
+  - najsporije rute po p95;
+  - broj outbox događaja u minuti.
+- Periodi su 1 h, 24 h i 7 dana, a stranica se osvježava svakih 30 sekundi. Vrijednosti iznad 300 ms (NFR-03) i više od 1 % grešaka su crvene. Link vodi u Grafanu za detalje i logove.
+- Podaci dolaze samo iz Prometheusa (`PROMETHEUS_URL`), nikad iz samih servisa, pa ekran radi i kad neki servis padne (NFR-22). Bez Prometheusa stranica to jasno kaže.
+- Metrike sada nose verziju aplikacije i ID instance, pa se procesi ne miješaju kad ih ima više.
+- Alarmi (FR-ADM-21) i tragovi zahtjeva (FR-ADM-20) i dalje nisu urađeni.
+
+### Aplikacija za goste kao PWA
+
+- **Instalacija:** manifest s ikonom omogućava dodavanje na početni ekran telefona.
+- **Spora veza:** service worker čuva aplikaciju i zadnji meni lokala, pa se meni otvara brže i na slabom signalu.
+- **Šta se ne čuva:** sesija stola i narudžbe se nikad ne uzimaju iz kopije, jer bi zastarjelo stanje zavaralo. Naručivanje i dalje traži vezu.
+- Veličina JavaScripta je 170 KB gzip (granica 200 KB).
+
 ## Odgođene stavke
 
 Zahtjevi iz MVP-a koji su svjesno pomjereni za kasnije. Prije puštanja u produkciju se vraćaju na listu.
 
-| Zahtjev | Šta je odgođeno | Trenutno stanje | Odluka |
-| --- | --- | --- | --- |
-| NFR-24 | Point-in-time recovery (RPO 15 min) | Noćni šifrovani `pg_dump` u S3, 7 dnevnih i 4 sedmične kopije, s testom vraćanja (`make backup-restore-test`). RPO je za sada do 24 h. | 2. 10. 2026. |
-| FR-ADM-17, 18 | Ekran nadzora u admin panelu | Metrike i logovi su u Grafani (`grafana.<domena>`), s dashboardom latencije i grešaka po modulu. | 2. 10. 2026. |
-| FR-KON-01 | Prijava PIN-om na zajedničkom uređaju lokala | Konobar se prijavljuje korisničkim imenom i lozinkom na svom telefonu. PIN po članu osoblja se već postavlja u panelu (`pin_hash`), pa se prijava PIN-om dodaje uz povezivanje uređaja s lokalom. | 1. 10. 2026. |
+Trenutno nema odgođenih MVP stavki. Posljednje tri (vraćanje baze na tačan trenutak, ekran nadzora i prijava PIN-om) urađene su u verziji 0.6.

@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { formatMoney, formatTime, minutesSince } from '../lib/format';
-import { useAction } from '../lib/useAction';
+import { useAction, useQueuedAction } from '../lib/useAction';
 import { useCan } from '../lib/useAuth';
 import { ItemPicker } from './ItemPicker';
 
@@ -72,8 +72,22 @@ export function OrderCard({
   const url = `/staff/orders/${order.id}`;
   const post = (path: string, body: object = {}) =>
     api<void>(`${url}${path}`, { method: 'POST', body });
-  const accept = useAction(() => post('/accept'));
-  const serve = useAction(() => post('/serve'));
+  // One-tap steps also work without internet (queued, NFR-05).
+  const label = t('orders.number', { number: order.number });
+  const accept = useQueuedAction(() => ({
+    method: 'POST',
+    path: `${url}/accept`,
+    body: {},
+    patch: { id: order.id, fields: { status: 'accepted' } },
+    label,
+  }));
+  const serve = useQueuedAction(() => ({
+    method: 'POST',
+    path: `${url}/serve`,
+    body: {},
+    patch: { id: order.id, fields: { status: 'served' } },
+    label,
+  }));
   const dialogAction = useAction((d: Dialog) => {
     const message = text.trim();
     switch (d.kind) {

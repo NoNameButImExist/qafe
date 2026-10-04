@@ -38,6 +38,10 @@ Tenant, auth and data rules:
 
 - **RLS**: every transaction runs `set_config('app.venue_id', $1, true)` and
   `set_config('app.is_super_admin', $2, true)` via the helper in `packages/db`; no query runs without it.
+  Policies are plain `venue_id = app.current_venue_id()` (indexable; never add `OR ...` to a policy:
+  the load test showed it turns every query into a scan of all venues). Platform contexts
+  (`isSuperAdmin: true`) run as `svc_<module>_platform` (NOLOGIN, BYPASSRLS, same privileges,
+  `SET LOCAL ROLE` in `withTenant`). Tables read per venue need an index that starts with `venue_id`.
 - Before `venue_id` is known, use only `core.resolve_venue(slug)` and `core.resolve_table(qr_token)`:
   `SECURITY DEFINER`, owned by the `resolver` role (NOLOGIN, BYPASSRLS), executable only by `svc_core`.
 - **Routing**: `{slug}.qafe.ba/api/*` goes to the api, and the tenant comes from the host. The guest
@@ -50,6 +54,11 @@ Tenant, auth and data rules:
   `GET /.well-known/jwks.json`. Access token in memory on the client, refresh token in an httpOnly,
   `SameSite=Strict` cookie (`qafe_rt`, path `AUTH_COOKIE_PATH`). Login is throttled in Redis
   (`LoginThrottle`: 5 failures per account+IP, 20 per IP, 15 min; fails open if Redis is down).
+- **PIN sign-in on a shared device (FR-KON-01)**: an owner links a device (`POST /auth/staff/devices`,
+  `staff.manage`; httpOnly cookie `qafe_sdev`, only its sha256 in `core.staff_devices`, found via
+  `core.resolve_staff_device`). `GET /auth/staff/device` lists members with a PIN,
+  `POST /auth/staff/pin-login` signs in (throttled per device+member and per device). The staff
+  app locks a PIN session after 5 min idle; the panel lists and revokes devices.
 - **Staff sign-in**: `POST /auth/staff/login` (venue slug + username + password), `/auth/staff/refresh`,
   `/auth/staff/logout`, `/auth/staff/me`. Its refresh cookie is `qafe_srt` (admin: `qafe_rt`), and a
   staff session row carries `venue_id`/`member_id`, so refreshing runs in that venue's RLS context.
@@ -65,8 +74,8 @@ Tenant, auth and data rules:
   `@AllowTemporaryPassword()` (me, `POST /auth/password`). Whoever sets someone else's password
   (admin: new venue owner, reset; owner: new staff, new password) chooses with
   `requirePasswordChange` (default on). Admin, panel and staff show `ChangePasswordForm`
-  (`@qafe/ui`, i18n keys `password.*`) until it is changed. Postponed: PIN sign-in on a shared
-  device (see "Odgođene stavke"). The seed admin password is for development only.
+  (`@qafe/ui`, i18n keys `password.*`) until it is changed. A PIN sign-in does not demand the
+  change (the password was not used). The seed admin password is for development only.
 - **Idempotency**: `ordering.orders.idempotency_key` + `UNIQUE (venue_id, idempotency_key)`; on conflict
   return the existing order (200). Redis is only a cache in front of it.
 - Redis is never a source of truth. Keys are prefixed `qafe:<module>:...`.
@@ -159,7 +168,12 @@ is for typechecking only. Apps depend on them with `workspace:*`.
 - `catalog`: the menu (`/catalog/*` for staff, `/admin/venues/:venueId/catalog/*` for admins,
   FR-ADM-07). Every call runs in the venue's RLS context; every change goes to `catalog.outbox`.
   Prices are decimal strings ("2.50"); input accepts "2,5". Items are soft-deleted.
-- `audit`: read side of the audit log.
+- `audit`: read side of the audit log. `audit.audit_logs` and `reporting.order_item_facts` are
+  partitioned by month (`app.ensure_month_partitions`, worker job nightly, DEFAULT partition as a
+  net); idempotency key is `(event_id, created_at)` / `(order_item_id, business_date)`. The admin
+  list pages by cursor (`nextCursor`, no count); filters come from `audit.actions`,
+  `audit.actor_labels`, `audit.venue_labels` (kept by the worker's AuditWriter). Months older than
+  `AUDIT_RETENTION_MONTHS` (24) are archived to S3 and detached by the backup service.
 - `ordering`: table sessions and orders. Guest API `/guest/*` (no login): `GuestGuard` takes the
   venue from the host (`<slug>.<DOMAIN>`, `slugFromHost`) and the device from the host-only cookie
   `qafe_gd` (only its HMAC with `GUEST_SESSION_SECRET` is stored as `device_hash`). First device
@@ -267,15 +281,16 @@ is for typechecking only. Apps depend on them with `workspace:*`.
   browse. TanStack Query for data, i18next (bs/en; English for phones not set to bs/hr/sr), a small
   cart store in localStorage per host (survives refresh, keeps one idempotency key per cart).
 - `pnpm --filter @qafe/guest build` fails when the JavaScript is over 200 KB gzip (NFR-01,
-  `scripts/check-size.mjs`); currently about 170 KB.
+  `scripts/check-size.mjs`); currently about 170 KB. PWA: manifest + `public/sw.js` (app shell and
+  the last `/api/guest/venue` and `/api/guest/menu`, network first; session and orders never cached).
 - Animations: `motion` with `LazyMotion strict` (`src/motion/`): only `m.*` components; the
   features chunk loads after first paint. `BottomSheet` (drag to close, on `<dialog>`) replaces
   the shared `Sheet` in the guest app; `burst()` fires the star burst. Service worker / offline PWA is not added yet.
 
 ## Staff app (apps/staff)
 
-- `http://localhost:5174`: sign in with venue slug + username + password (PIN sign-in on a shared
-  device is postponed, see "Odgođene stavke"). Same stack as the panel (TanStack Router and Query,
+- `http://localhost:5174`: sign in with venue slug + username + password, or name + PIN on a
+  device the owner linked ("Ovaj uređaj"). Same stack as the panel (TanStack Router and Query,
   i18next, `@qafe/ui`) plus `socket.io-client`.
 - "Spreman za rad" after every load unlocks sound (Web Audio beep, no file) and may ask for push
   permission (FR-KON-02, 05). `public/sw.js` is a hand-written service worker for push only; it
@@ -285,10 +300,14 @@ is for typechecking only. Apps depend on them with `workspace:*`.
   availability (`/menu`). Actions follow the member's permissions (`useCan`).
 - Look: dark top bar with live indicator (`useLive`), sidebar on `lg`, floating bottom nav on
   phones; `motion` (`LazyMotion` with `domMax`) for layout animations.
+- Offline (NFR-05, `lib/offline.ts`, `lib/network.ts`): snapshot of floor/orders/session/menu/kds
+  in localStorage per venue (TanStack `dehydrate`/`hydrate`); one-tap actions use
+  `useQueuedAction` (`networkMode: 'always'`, 8 s timeout, queued and replayed in order).
+  Payment and order edits need a connection. `public/sw.js` also caches the app shell; a refresh
+  that fails for lack of network keeps the saved profile instead of signing out.
 - Realtime: the socket sends the access token on every (re)connect; `venue.changed` refetches and
   rings and vibrates (`navigator.vibrate`, Android only) for guest-caused changes. The guest app
-  vibrates briefly when an order changes or the device is let in. Offline mode (NFR-05) is not
-  built yet.
+  vibrates briefly when an order changes or the device is let in. Offline mode: see "Offline" above.
 
 ## Docker
 
@@ -315,7 +334,18 @@ is for typechecking only. Apps depend on them with `workspace:*`.
   `OTEL_EXPORTER_OTLP_ENDPOINT` is set (`@qafe/observability` `startTelemetry`).
 - `backup` service (`infra/docker/backup.Dockerfile`, `infra/backup/*.sh`): nightly encrypted
   `pg_dump` to `s3://BACKUP_BUCKET/daily|weekly`, 7 + 4 kept; `make backup`,
-  `make backup-restore-test` (restores into `qafe_restore`). No PITR yet.
+  `make backup-restore-test` (restores into `qafe_restore`); also `archive-audit.sh`.
+- PITR (NFR-24): postgres is `infra/docker/postgres.Dockerfile` (postgres:16-alpine + pgBackRest),
+  archiving WAL (`archive_timeout` 60 s); the `pitr` service backs up daily (full on Sundays).
+  Repo: a volume locally, S3 (HTTPS) on servers (`PITR_*`). `make pitr-info`, `pitr-backup`,
+  `pitr-restore-test at="..."`. `pg_stat_statements` is on.
+- Scaling: `API_REPLICAS` (Traefik sticky cookie `qafe_lb`), `DB_POOL_MAX`,
+  `POSTGRES_MAX_CONNECTIONS`. Redis runs `volatile-lru` (only keys with a TTL are evicted).
+- Load test (`infra/loadtest`, k6 in Docker): `make loadtest-seed`, `make loadtest`,
+  `make loadtest-clean` (`LT_VENUES`, `LT_TABLES`, `LT_DURATION`; venues `lt-*`).
+- Admin "Nadzor sistema" (`/system`, `GET /admin/monitoring?window=1h|24h|7d`) reads only
+  Prometheus (`PROMETHEUS_URL`, `GRAFANA_URL`); metrics carry `service.version` and
+  `service.instance.id` and `qafe.process.start_time`.
 
 ## Phases
 
@@ -328,12 +358,12 @@ is for typechecking only. Apps depend on them with `workspace:*`.
 4. Remaining modules, `redis`, a BullMQ example job ← **ordering, billing, reporting and redis done**,
    worker relays all outboxes (audit log, report facts, Web Push). Missing: BullMQ jobs.
 5. Frontends ← **admin mostly done**, **panel started**: admin has login, overview, venues + venue
-   page, modules, users, audit log (missing: menu UI for FR-ADM-07 (API ready), monitoring).
+   page, modules, users, audit log, system monitoring (missing: menu UI for FR-ADM-07 (API ready)).
    Panel has login, overview, menu, settings (incl. opening hours), space and QR, staff, orders
    and reports.
    Guest app done for MVP ordering (FR-GOS-01..04, 08..16, 20..27); staff app done for the MVP
-   waiter flow (FR-KON-01, 02, 04..13, 15..19, 21, 22) with push; offline mode (NFR-05) missing.
+   waiter flow (FR-KON-01, 02, 04..13, 15..19, 21, 22) with push, PIN sign-in and offline mode (NFR-05).
 6. Full Docker: compose (observability, apps, tools), Traefik, prod compose, Makefile ← **done**
-   (monitoring and nightly backups since v0.5; point-in-time recovery missing)
+   (monitoring and nightly backups since v0.5, point-in-time recovery since v0.6)
 
-Not yet: offline staff app, admin monitoring screen, point-in-time recovery. Those follow `docs/requirements.md`.
+Not yet: alerts (FR-ADM-21) and request tracing (FR-ADM-20), both V2. Those follow `docs/requirements.md`.

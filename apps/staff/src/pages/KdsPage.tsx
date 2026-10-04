@@ -5,11 +5,10 @@ import { Link } from '@tanstack/react-router';
 import { Check, ChevronLeft, CircleCheck, Expand, Flame, History, Play } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api } from '../lib/api';
 import { kdsQuery } from '../lib/queries';
 import { setAlertsMuted } from '../lib/realtime';
 import { beep, unlockSound, vibrate } from '../lib/sound';
-import { useAction } from '../lib/useAction';
+import { useQueuedAction } from '../lib/useAction';
 import { useCan } from '../lib/useAuth';
 
 const STATION_KEY = 'qafe.staff.kdsStation';
@@ -46,18 +45,26 @@ export function KdsPage() {
   useNewItemAlert(view.data);
   useWakeLock(started);
 
-  const ready = useAction((itemId: string) =>
-    api<void>(`/staff/kds/items/${itemId}/ready`, { method: 'POST' }),
-  );
-  const undoReady = useAction((itemId: string) =>
-    api<void>(`/staff/kds/items/${itemId}/undo`, { method: 'POST' }),
-  );
-  const start = useAction((orderId: string) =>
-    api<void>(`/staff/kds/orders/${orderId}/start`, {
-      method: 'POST',
-      query: { station: station === 'all' ? undefined : station },
-    }),
-  );
+  // Taps on the KDS also work without internet (queued, NFR-05).
+  const ready = useQueuedAction((itemId: string) => ({
+    method: 'POST',
+    path: `/staff/kds/items/${itemId}/ready`,
+    patch: { id: itemId, fields: { status: 'ready' } },
+    label: t('kds.title'),
+  }));
+  const undoReady = useQueuedAction((itemId: string) => ({
+    method: 'POST',
+    path: `/staff/kds/items/${itemId}/undo`,
+    patch: { id: itemId, fields: { status: 'preparing' } },
+    label: t('kds.title'),
+  }));
+  const start = useQueuedAction((orderId: string) => ({
+    method: 'POST',
+    path: `/staff/kds/orders/${orderId}/start`,
+    query: { station: station === 'all' ? undefined : station },
+    patch: { id: orderId, fields: { started: true } },
+    label: t('kds.title'),
+  }));
 
   useEffect(() => {
     if (!undo) return;

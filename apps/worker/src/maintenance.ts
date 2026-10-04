@@ -12,6 +12,33 @@ export interface MaintenanceDbs {
   catalog: TenantDatabase;
   ordering: TenantDatabase;
   billing: TenantDatabase;
+  audit: TenantDatabase;
+  reporting: TenantDatabase;
+}
+
+/** Months created ahead, so the DEFAULT partition stays empty (adding a month then works). */
+const MONTHS_AHEAD = 4;
+
+/**
+ * The audit log and the sales facts are split by month: create the partitions for this
+ * month and the next ones. Safe to run any number of times.
+ */
+export async function ensurePartitions(
+  dbs: Pick<MaintenanceDbs, 'audit' | 'reporting'>,
+): Promise<number> {
+  const create = (db: TenantDatabase, table: string) =>
+    db.withTenant(ALL_VENUES, async (trx) => {
+      const { rows } = await sql<{
+        created: number;
+      }>`select app.ensure_month_partitions(${table}::regclass, current_date, ${MONTHS_AHEAD}) as created`.execute(
+        trx,
+      );
+      return rows[0]?.created ?? 0;
+    });
+  return (
+    (await create(dbs.audit, 'audit.audit_logs')) +
+    (await create(dbs.reporting, 'reporting.order_item_facts'))
+  );
 }
 
 /**

@@ -29,6 +29,7 @@ services:
     restart: always
     environment:
       COOKIE_SECURE: 'true'
+      GRAFANA_URL: https://grafana.${DOMAIN}
     labels:
       traefik.http.routers.api.entrypoints: websecure
       traefik.http.routers.api.tls.certresolver: le
@@ -71,6 +72,9 @@ services:
       traefik.http.routers.web.tls.certresolver: le
 
   backup:
+    restart: always
+
+  pitr:
     restart: always
 
   grafana:

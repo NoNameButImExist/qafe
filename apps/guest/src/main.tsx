@@ -23,6 +23,12 @@ const queryClient = new QueryClient({
 });
 connectRealtime(queryClient);
 
+// PWA: the app and the last menu stay available on a weak connection. Not in dev (Vite
+// serves unhashed modules that must never come from a cache).
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  void navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+}
+
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element');
 

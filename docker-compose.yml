@@ -31,6 +31,10 @@ x-logging: &logging
 x-backend-env: &backend-env
   NODE_ENV: production
   POSTGRES_HOST: postgres
+  DB_POOL_MAX: ${DB_POOL_MAX:-10}
+  # Admin monitoring screen (FR-ADM-17): read from Prometheus (profile monitoring).
+  PROMETHEUS_URL: http://prometheus:9090
+  GRAFANA_URL: http://grafana.${DOMAIN:-qafe.localhost}
   POSTGRES_PORT: 5432
   REDIS_HOST: redis
   REDIS_PORT: 6379
@@ -43,13 +47,47 @@ x-web: &web
   networks: [internal]
   logging: *logging
 
+# pgBackRest repository settings, shared by postgres (WAL archiving) and pitr (backups).
+x-pitr-env: &pitr-env
+  PITR_PASSPHRASE: ${PITR_PASSPHRASE:?Set PITR_PASSPHRASE in .env}
+  PITR_REPO_TYPE: ${PITR_REPO_TYPE:-posix}
+  PITR_RETENTION_FULL: ${PITR_RETENTION_FULL:-2}
+  PITR_S3_BUCKET: ${PITR_S3_BUCKET:-}
+  PITR_S3_ENDPOINT: ${PITR_S3_ENDPOINT:-}
+  PITR_S3_REGION: ${PITR_S3_REGION:-}
+  PITR_S3_KEY: ${PITR_S3_KEY:-}
+  PITR_S3_SECRET: ${PITR_S3_SECRET:-}
+
 services:
   # ---------------------------------------------------------------- data services
   postgres:
-    image: postgres:16-alpine
+    # Postgres 16 + pgBackRest: every WAL segment goes to the PITR repository (NFR-24).
+    image: ${QAFE_IMAGE_PREFIX:-qafe}-postgres:${POSTGRES_IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: infra/docker/postgres.Dockerfile
     profiles: [infra, app]
     restart: unless-stopped
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=pgbackrest --stanza=qafe archive-push %p
+      # Even when quiet, at most this many seconds of changes wait for the archive.
+      - -c
+      - archive_timeout=${PITR_ARCHIVE_TIMEOUT:-60}
+      # Query statistics for finding slow queries (pg_stat_statements view, small overhead).
+      - -c
+      - max_connections=${POSTGRES_MAX_CONNECTIONS:-300}
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=top
     environment:
+      <<: *pitr-env
       POSTGRES_DB: ${POSTGRES_DB:-qafe}
       POSTGRES_USER: ${POSTGRES_ADMIN_USER:-qafe_admin}
       POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Set POSTGRES_ADMIN_PASSWORD in .env}
@@ -62,6 +100,8 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+      - pgbackrest:/var/lib/pgbackrest
+      - pgsocket:/var/run/postgresql
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
       interval: 5s
@@ -70,7 +110,9 @@ services:
     networks: [internal]
     logging: *logging
 
-  # Cache, rate limits and realtime fan-out. Never a source of truth: losing it loses no data.
+  # Cache, rate limits, realtime fan-out and the worker's job queue. Never a source of truth:
+  # losing it loses no data. volatile-lru: under memory pressure only keys with an expiry
+  # (cache, limits) are evicted, never the job queue (BullMQ keys have none).
   redis:
     image: redis:8.6-alpine
     profiles: [infra, app]
@@ -78,7 +120,7 @@ services:
     command:
       - sh
       - -c
-      - exec redis-server --requirepass "$$REDIS_PASSWORD" --appendonly no --maxmemory 256mb --maxmemory-policy allkeys-lru
+      - exec redis-server --requirepass "$$REDIS_PASSWORD" --appendonly no --maxmemory 256mb --maxmemory-policy volatile-lru
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
     healthcheck:
@@ -181,6 +223,10 @@ services:
     profiles: [app]
     restart: unless-stopped
     env_file: .env
+    # One Node process uses one CPU core: run more of them behind Traefik (state is in
+    # Postgres and Redis). Each opens up to 6 x DB_POOL_MAX connections.
+    deploy:
+      replicas: ${API_REPLICAS:-1}
     environment:
       <<: *backend-env
       PORT: 3000
@@ -209,6 +255,10 @@ services:
       traefik.http.routers.api.middlewares: strip-api
       traefik.http.middlewares.strip-api.stripprefix.prefixes: /api
       traefik.http.services.api.loadbalancer.server.port: '3000'
+      # Several api processes (API_REPLICAS): a Socket.IO long-polling fallback must stay on one.
+      traefik.http.services.api.loadbalancer.sticky.cookie: 'true'
+      traefik.http.services.api.loadbalancer.sticky.cookie.name: qafe_lb
+      traefik.http.services.api.loadbalancer.sticky.cookie.httponly: 'true'
     networks: [internal]
     logging: *logging
 
@@ -346,6 +396,8 @@ services:
       BACKUP_BUCKET: ${BACKUP_BUCKET:-backups}
       BACKUP_KEEP_DAILY: ${BACKUP_KEEP_DAILY:-7}
       BACKUP_KEEP_WEEKLY: ${BACKUP_KEEP_WEEKLY:-4}
+      # Audit log months older than this go to s3://BACKUP_BUCKET/audit/ (NFR-25: >= 12).
+      AUDIT_RETENTION_MONTHS: ${AUDIT_RETENTION_MONTHS:-24}
       # MinIO here; on a server point these at an off-site S3 (Backblaze B2, Hetzner, AWS).
       S3_ENDPOINT: ${BACKUP_S3_ENDPOINT:-http://minio:9000}
       AWS_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY:-${S3_ACCESS_KEY}}
@@ -356,6 +408,30 @@ services:
         condition: service_healthy
       minio-backups-bucket:
         condition: service_completed_successfully
+    networks: [internal]
+    logging: *logging
+
+  # Point-in-time recovery (NFR-24): daily pgBackRest backups next to the continuous WAL
+  # archive. make pitr-restore-test restores "2 minutes ago" into a scratch directory.
+  pitr:
+    image: ${QAFE_IMAGE_PREFIX:-qafe}-postgres:${POSTGRES_IMAGE_TAG:-local}
+    profiles: [app]
+    restart: unless-stopped
+    user: postgres
+    entrypoint: ['/usr/local/bin/pitr-loop.sh']
+    environment:
+      <<: *pitr-env
+      TZ: ${BACKUP_TZ:-Europe/Sarajevo}
+      PITR_AT: ${PITR_AT:-03:00}
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER:-qafe_admin}
+      POSTGRES_DB: ${POSTGRES_DB:-qafe}
+    volumes:
+      - pgdata:/var/lib/postgresql/data:ro
+      - pgbackrest:/var/lib/pgbackrest
+      - pgsocket:/var/run/postgresql
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks: [internal]
     logging: *logging
 
@@ -438,6 +514,8 @@ networks:
 
 volumes:
   pgdata:
+  pgbackrest:
+  pgsocket:
   miniodata:
   prometheusdata:
   lokidata:
