@@ -1,6 +1,6 @@
 {
   "name": "@qafe/guest",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "description": "Guest ordering app (menu, cart, orders, bill). Must stay light (NFR-01).",

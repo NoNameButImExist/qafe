@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.1](https://github.com/NoNameButImExist/qafe/compare/observability-v0.4.0...observability-v0.4.1) (2026-10-05)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @qafe/config bumped to 0.3.0
+
 ## [0.4.0](https://github.com/NoNameButImExist/qafe/compare/observability-v0.3.0...observability-v0.4.0) (2026-10-04)
 
 

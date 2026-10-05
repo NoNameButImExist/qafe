@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.1](https://github.com/NoNameButImExist/qafe/compare/auth-v0.3.0...auth-v0.3.1) (2026-10-05)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @qafe/config bumped to 0.3.0
+
 ## [0.3.0](https://github.com/NoNameButImExist/qafe/compare/auth-v0.2.1...auth-v0.3.0) (2026-10-02)
 
 
