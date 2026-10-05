@@ -1,6 +1,6 @@
 {
   "name": "@qafe/menu-editor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "The menu editor (categories, items, modifier groups, images, drag and drop), shared by the venue panel and the admin panel (FR-SEF-17..19, FR-ADM-07).",
