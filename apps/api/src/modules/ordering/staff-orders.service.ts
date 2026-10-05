@@ -524,53 +524,8 @@ export class StaffOrdersService {
       .execute();
   }
 
-  /** The table's active session, or a new one opened (and verified) by staff. */
-  private async openSession(
-    trx: Tx,
-    staff: StaffClaims,
-    table: { id: string; label: string },
-  ): Promise<{ id: string }> {
-    const find = () =>
-      trx
-        .selectFrom('ordering.table_sessions')
-        .select('id')
-        .where('table_id', '=', table.id)
-        .where('status', 'in', ['open', 'bill_requested'])
-        .forUpdate()
-        .executeTakeFirst();
-    const existing = await find();
-    if (existing) return existing;
-    const now = new Date();
-    const inserted = await trx
-      .insertInto('ordering.table_sessions')
-      .values({
-        venue_id: staff.venueId,
-        table_id: table.id,
-        table_label: table.label,
-        verified_at: now,
-        verified_by_member_id: staff.memberId,
-      })
-      .onConflict((oc) =>
-        oc.column('table_id').where('status', 'in', ['open', 'bill_requested']).doNothing(),
-      )
-      .returning('id')
-      .executeTakeFirst();
-    if (inserted) {
-      await publish(trx, {
-        type: 'session.opened',
-        venueId: staff.venueId,
-        sessionId: inserted.id,
-        tableId: table.id,
-        tableLabel: table.label,
-        entityId: inserted.id,
-        details: { by: 'staff' },
-        ...staffActor(staff.memberId, staff.name),
-      });
-      return inserted;
-    }
-    const raced = await find();
-    if (!raced) throw new Error('Table session could not be opened');
-    return raced;
+  private openSession(trx: Tx, staff: StaffClaims, table: { id: string; label: string }) {
+    return openStaffSession(trx, staff, table);
   }
 
   private async byKey(trx: Tx, key: string): Promise<StaffOrder | null> {
@@ -609,4 +564,53 @@ export class StaffOrdersService {
   private inVenue<T>(staff: StaffClaims, fn: (trx: Tx) => Promise<T>): Promise<T> {
     return this.db.withTenant({ venueId: staff.venueId, isSuperAdmin: false }, fn);
   }
+}
+
+/** The table's active session (locked), or a new one opened (and verified) by staff. */
+export async function openStaffSession(
+  trx: Tx,
+  staff: StaffClaims,
+  table: { id: string; label: string },
+): Promise<{ id: string }> {
+  const find = () =>
+    trx
+      .selectFrom('ordering.table_sessions')
+      .select('id')
+      .where('table_id', '=', table.id)
+      .where('status', 'in', ['open', 'bill_requested'])
+      .forUpdate()
+      .executeTakeFirst();
+  const existing = await find();
+  if (existing) return existing;
+  const now = new Date();
+  const inserted = await trx
+    .insertInto('ordering.table_sessions')
+    .values({
+      venue_id: staff.venueId,
+      table_id: table.id,
+      table_label: table.label,
+      verified_at: now,
+      verified_by_member_id: staff.memberId,
+    })
+    .onConflict((oc) =>
+      oc.column('table_id').where('status', 'in', ['open', 'bill_requested']).doNothing(),
+    )
+    .returning('id')
+    .executeTakeFirst();
+  if (inserted) {
+    await publish(trx, {
+      type: 'session.opened',
+      venueId: staff.venueId,
+      sessionId: inserted.id,
+      tableId: table.id,
+      tableLabel: table.label,
+      entityId: inserted.id,
+      details: { by: 'staff' },
+      ...staffActor(staff.memberId, staff.name),
+    });
+    return inserted;
+  }
+  const raced = await find();
+  if (!raced) throw new Error('Table session could not be opened');
+  return raced;
 }

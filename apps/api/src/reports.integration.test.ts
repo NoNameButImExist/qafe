@@ -3,6 +3,7 @@
 import type {
   DayOrderList,
   GuestVenue,
+  MyDay,
   ReportSummary,
   SessionSettledEvent,
   VenueSettings,
@@ -181,6 +182,28 @@ describe('a paid table feeds reporting (FR-SEF-24)', () => {
       (await staffCall(t, owner, 'GET', '/reports/summary?from=2026-09-12&to=2026-09-10'))
         .statusCode,
     ).toBe(400);
+  });
+});
+
+describe("a member's own day (FR-KON-23)", () => {
+  it('shows a waiter what the tables they served paid, without reports.view', async () => {
+    const res = await staffCall(t, waiter, 'GET', '/reports/me?date=2026-09-10');
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json<MyDay>()).toEqual({
+      date: '2026-09-10',
+      revenue: '7.00',
+      orders: 1,
+      items: 3,
+      byMethod: [{ method: 'cash', revenue: '7.00' }],
+      topItems: [{ name: 'Espresso', quantity: 3, revenue: '7.00' }],
+    });
+
+    // The owner served nothing that day; today defaults to the venue's business day.
+    const mine = (await staffCall(t, owner, 'GET', '/reports/me?date=2026-09-10')).json<MyDay>();
+    expect(mine).toMatchObject({ revenue: '0.00', orders: 0, byMethod: [], topItems: [] });
+    const today = (await staffCall(t, waiter, 'GET', '/reports/me')).json<MyDay>();
+    expect(today.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect((await staffCall(t, waiter, 'GET', '/reports/me?date=10.09.2026')).statusCode).toBe(400);
   });
 });
 

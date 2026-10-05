@@ -10,6 +10,7 @@ import { OrderingDatabase } from './ordering.database.js';
 import { PushService } from './push.service.js';
 import { RealtimeGateway } from './realtime.gateway.js';
 import { SessionLedger } from './session-ledger.js';
+import { TableMovesService } from './table-moves.service.js';
 import { StaffOrdersService } from './staff-orders.service.js';
 import { StaffSessionsService } from './staff-sessions.service.js';
 import { StaffController } from './staff.controller.js';
@@ -29,6 +30,7 @@ import { StaffController } from './staff.controller.js';
     PushService,
     KdsService,
     SessionLedger,
+    TableMovesService,
   ],
   exports: [SessionLedger],
 })

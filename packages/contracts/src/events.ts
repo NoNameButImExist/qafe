@@ -110,6 +110,15 @@ export const StaffEvent = z.object({
 });
 export type StaffEvent = z.infer<typeof StaffEvent>;
 
+/** Platform settings changed by a super admin (theme, SMTP). Secrets are never in the event. */
+export const PlatformSettingsEvent = z.object({
+  type: z.enum(['platform.theme_changed', 'platform.smtp_updated']),
+  before: z.record(z.string(), z.unknown()).optional(),
+  after: z.record(z.string(), z.unknown()).optional(),
+  actor: Actor,
+});
+export type PlatformSettingsEvent = z.infer<typeof PlatformSettingsEvent>;
+
 export const CoreEvent = z.discriminatedUnion('type', [
   VenueCreatedEvent,
   VenueUpdatedEvent,
@@ -119,6 +128,7 @@ export const CoreEvent = z.discriminatedUnion('type', [
   UserAdminEvent,
   SpaceEvent,
   StaffEvent,
+  PlatformSettingsEvent,
 ]);
 export type CoreEvent = z.infer<typeof CoreEvent>;
 
@@ -176,6 +186,11 @@ export const OrderingEvent = z.object({
     'session.closed',
     'service.requested',
     'service.handled',
+    // V2 at the table (FR-KON-14, FR-KON-20).
+    'order.moved',
+    'session.merged',
+    'session.moved',
+    'session.partially_paid',
   ]),
   venueId: z.uuid(),
   sessionId: z.uuid(),
@@ -201,6 +216,8 @@ export const SessionSettledEvent = z.object({
   sessionId: z.uuid(),
   paymentId: z.uuid(),
   paymentMethod: z.enum(['cash', 'card', 'online']),
+  /** Items paid earlier by a guest's partial payment, with that payment's method (FR-KON-20). */
+  itemMethods: z.record(z.string(), z.enum(['cash', 'card', 'online'])).default({}),
   tableLabel: z.string(),
   areaName: z.string().nullable(),
   settledAt: z.string(),

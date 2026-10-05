@@ -41,6 +41,11 @@ const Env = z.object({
     .string()
     .optional()
     .refine((v) => !v || Buffer.from(v, 'base64').length === 32, 'must be 32 bytes, base64'),
+  /** 32 bytes, base64: encrypts secrets in platform settings (SMTP password). */
+  SETTINGS_ENCRYPTION_KEY: z
+    .string()
+    .optional()
+    .refine((v) => !v || Buffer.from(v, 'base64').length === 32, 'must be 32 bytes, base64'),
   /** Secure cookies; defaults to off only in development. Set false for the local Docker stack over http. */
   COOKIE_SECURE: z.stringbool().optional(),
 
@@ -96,6 +101,7 @@ export interface AppConfig {
   };
   redis: { host: string; port: number; password: string | undefined };
   monitoring: { prometheusUrl: string | null; grafanaUrl: string | null };
+  settings: { encryptionKey: string | null };
   storage: StorageConfig;
   auth: {
     privateKeyPem: string;
@@ -161,6 +167,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
       poolMax: env.DB_POOL_MAX,
     },
     redis: { host: env.REDIS_HOST, port: env.REDIS_PORT, password: env.REDIS_PASSWORD },
+    settings: { encryptionKey: env.SETTINGS_ENCRYPTION_KEY || null },
     monitoring: {
       prometheusUrl: env.PROMETHEUS_URL ?? null,
       grafanaUrl: env.GRAFANA_URL ?? null,

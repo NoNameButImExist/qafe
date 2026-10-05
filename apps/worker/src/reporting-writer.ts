@@ -39,7 +39,7 @@ export class ReportingWriter {
               quantity: i.quantity,
               revenue: i.revenue,
               vat_amount: i.vatAmount,
-              payment_method: e.paymentMethod,
+              payment_method: e.itemMethods[i.orderItemId] ?? e.paymentMethod,
             })),
           )
           .onConflict((oc) => oc.columns(['order_item_id', 'business_date']).doNothing())

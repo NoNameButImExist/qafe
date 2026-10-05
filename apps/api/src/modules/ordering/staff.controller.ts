@@ -16,6 +16,8 @@ import {
   DayOrdersQuery,
   KdsQuery,
   ManualOrderRequest,
+  MoveOrderRequest,
+  MoveSessionRequest,
   PushSubscriptionRequest,
   PushUnsubscribeRequest,
   ReasonRequest,
@@ -29,6 +31,7 @@ import {
   type AddItemsInput,
   type DayOrderList,
   type KdsView,
+  type MoveSessionResult,
   type Floor,
   type PlaceOrderInput,
   type PushConfig,
@@ -50,6 +53,7 @@ import { KdsService } from './kds.service.js';
 import { PushService } from './push.service.js';
 import { StaffOrdersService } from './staff-orders.service.js';
 import { StaffSessionsService } from './staff-sessions.service.js';
+import { TableMovesService } from './table-moves.service.js';
 
 const uuid = new ParseUUIDPipe();
 
@@ -62,6 +66,7 @@ export class StaffController {
     private readonly orders: StaffOrdersService,
     private readonly push: PushService,
     private readonly kdsService: KdsService,
+    private readonly moves: TableMovesService,
   ) {}
 
   // ---------- Tables and sessions ----------
@@ -169,6 +174,30 @@ export class StaffController {
     @Body(new ZodPipe(ManualOrderRequest)) body: PlaceOrderInput,
   ): Promise<StaffOrder> {
     return this.orders.manual(staff, tableId, body);
+  }
+
+  /** FR-KON-14: the order goes to another table. */
+  @Post('orders/:id/move')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @RequirePermission('orders.update')
+  moveOrder(
+    @CurrentStaff() staff: StaffClaims,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(MoveOrderRequest)) body: MoveOrderRequest,
+  ): Promise<void> {
+    return this.moves.moveOrder(staff, id, body.tableId);
+  }
+
+  /** FR-KON-14: the whole table moves to a free table, or merges into an occupied one. */
+  @Post('sessions/:id/move')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermission('orders.update')
+  moveSession(
+    @CurrentStaff() staff: StaffClaims,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(MoveSessionRequest)) body: MoveSessionRequest,
+  ): Promise<MoveSessionResult> {
+    return this.moves.moveSession(staff, id, body.tableId);
   }
 
   @Post('orders/:id/accept')

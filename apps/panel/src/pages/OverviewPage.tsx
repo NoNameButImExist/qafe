@@ -151,7 +151,7 @@ function Stat({
       className={cn(
         'rounded-2xl p-5',
         featured
-          ? 'bg-gradient-to-br from-blue-brand to-[#0056C4] text-white shadow-xl shadow-primary/25'
+          ? 'bg-gradient-to-br from-blue-brand to-blue-deep text-white shadow-xl shadow-primary/25'
           : 'border border-line bg-surface shadow-card',
       )}
     >

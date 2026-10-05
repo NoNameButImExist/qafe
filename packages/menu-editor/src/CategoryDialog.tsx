@@ -2,7 +2,7 @@ import type { Menu, MenuCategory } from '@qafe/contracts';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Field, Input, Sheet, Textarea } from '@qafe/ui';
-import { api, errorKey } from '../../lib/api';
+import { useMenuEditor } from './context';
 import { useMenuMutation } from './useMenuMutation';
 
 /** Create (category = null) or edit a category. */
@@ -18,15 +18,16 @@ export function CategoryDialog({
   onSaved: (menu: Menu, name: string) => void;
 }) {
   const { t } = useTranslation();
+  const { request, errorText } = useMenuEditor();
   const [name, setName] = useState(category?.name ?? '');
   const [description, setDescription] = useState(category?.description ?? '');
   const save = useMenuMutation(() =>
     category
-      ? api<Menu>(`/catalog/categories/${category.id}`, {
+      ? request<Menu>(`/categories/${category.id}`, {
           method: 'PATCH',
           body: { name, description },
         })
-      : api<Menu>('/catalog/categories', { method: 'POST', body: { name, description } }),
+      : request<Menu>('/categories', { method: 'POST', body: { name, description } }),
   );
 
   return (
@@ -58,9 +59,7 @@ export function CategoryDialog({
           save.mutate(undefined, { onSuccess: (menu) => onSaved(menu, name.trim()) });
         }}
       >
-        {save.isError && (
-          <p className="text-sm font-medium text-danger">{t(errorKey(save.error))}</p>
-        )}
+        {save.isError && <p className="text-sm font-medium text-danger">{errorText(save.error)}</p>}
         <Field label={t('menu.categoryName')} required>
           {({ id }) => (
             <Input

@@ -1,13 +1,9 @@
 import { CreateItemRequest, type Menu, type MenuItem, type UploadedImage } from '@qafe/contracts';
-import { useQuery } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Field, Input, Select, Sheet, Switch, Textarea, cn } from '@qafe/ui';
-import { api, errorKey } from '../../lib/api';
-import { formatDelta } from '../../lib/format';
-import { settingsQuery } from '../../lib/queries';
-import { useStaff } from '../../lib/useAuth';
-import { ImageInput } from '../ImageInput';
+import { Button, Field, ImageInput, Input, Select, Sheet, Switch, Textarea, cn } from '@qafe/ui';
+import { useMenuEditor } from './context';
+import { formatDelta } from './format';
 import { useMenuMutation } from './useMenuMutation';
 
 interface ItemSheetProps {
@@ -23,9 +19,8 @@ interface ItemSheetProps {
 /** FR-SEF-17..19: name, description, image, price, quantity, modifiers and availability. */
 export function ItemSheet({ open, menu, item, categoryId, onClose, onSaved }: ItemSheetProps) {
   const { t, i18n } = useTranslation();
-  const { venue, modules } = useStaff();
-  const kds = modules.includes('kds');
-  const settings = useQuery({ ...settingsQuery, enabled: kds });
+  const { request, errorText, currency, stations: allStations } = useMenuEditor();
+  const kds = allStations !== null;
   const [form, setForm] = useState({
     categoryId: item?.categoryId ?? categoryId,
     name: item?.name ?? '',
@@ -38,14 +33,12 @@ export function ItemSheet({ open, menu, item, categoryId, onClose, onSaved }: It
     prepStationId: item?.prepStationId ?? null,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const stations = (settings.data?.stations ?? []).filter(
-    (s) => s.isActive || s.id === form.prepStationId,
-  );
+  const stations = (allStations ?? []).filter((s) => s.isActive || s.id === form.prepStationId);
 
   const save = useMenuMutation((body: CreateItemRequest) =>
     item
-      ? api<Menu>(`/catalog/items/${item.id}`, { method: 'PATCH', body })
-      : api<Menu>('/catalog/items', { method: 'POST', body }),
+      ? request<Menu>(`/items/${item.id}`, { method: 'PATCH', body })
+      : request<Menu>('/items', { method: 'POST', body }),
   );
 
   function onSubmit(e: FormEvent) {
@@ -89,13 +82,14 @@ export function ItemSheet({ open, menu, item, categoryId, onClose, onSaved }: It
             role="alert"
             className="rounded-xl border border-danger/25 bg-danger/8 px-4 py-3 text-[13px] font-medium text-danger"
           >
-            {t(errorKey(save.error))}
+            {errorText(save.error)}
           </p>
         )}
 
         <Field label={t('menu.item.image')}>
           {() => (
             <ImageInput
+              errorText={errorText}
               url={form.imageUrl}
               chooseLabel={t('menu.item.chooseImage')}
               changeLabel={t('menu.item.changeImage')}
@@ -104,7 +98,7 @@ export function ItemSheet({ open, menu, item, categoryId, onClose, onSaved }: It
               onUpload={async (file) => {
                 const data = new FormData();
                 data.append('file', file);
-                const { url } = await api<UploadedImage>('/catalog/images', {
+                const { url } = await request<UploadedImage>('/images', {
                   method: 'POST',
                   form: data,
                 });
@@ -140,7 +134,7 @@ export function ItemSheet({ open, menu, item, categoryId, onClose, onSaved }: It
                 onChange={(e) => set('price', e.target.value)}
                 trailing={
                   <span className="pr-3 text-sm text-muted">
-                    {venue.currency === 'BAM' ? 'KM' : venue.currency}
+                    {currency === 'BAM' ? 'KM' : currency}
                   </span>
                 }
               />
@@ -226,7 +220,7 @@ export function ItemSheet({ open, menu, item, categoryId, onClose, onSaved }: It
                         <span className="block truncate text-xs text-muted">
                           {g.options
                             .map((o) =>
-                              [o.name, formatDelta(o.priceDelta, venue.currency, i18n.language)]
+                              [o.name, formatDelta(o.priceDelta, currency, i18n.language)]
                                 .filter(Boolean)
                                 .join(' '),
                             )

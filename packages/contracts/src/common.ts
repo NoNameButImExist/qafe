@@ -19,6 +19,15 @@ export const ErrorCode = {
   tooManyAttempts: 'too_many_attempts',
   /** PIN sign-in on a device that is not (or no longer) linked to a venue (FR-KON-01). */
   deviceNotLinked: 'device_not_linked',
+  /** SMTP is not set up, or the server refused the message (details.reason). */
+  /** A table with partial payments cannot be moved or merged (FR-KON-14, FR-KON-20). */
+  partiallyPaid: 'partially_paid',
+  /** Moving onto the table it is already at. */
+  sameTable: 'same_table',
+  smtpFailed: 'smtp_failed',
+  smtpNotConfigured: 'smtp_not_configured',
+  /** SETTINGS_ENCRYPTION_KEY is missing, so a secret cannot be stored. */
+  encryptionKeyMissing: 'encryption_key_missing',
   forbidden: 'forbidden',
   notFound: 'not_found',
   slugTaken: 'slug_taken',

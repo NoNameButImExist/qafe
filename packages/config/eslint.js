@@ -18,6 +18,7 @@ const nodeFiles = [
 const reactFiles = [
   'apps/{guest,staff,panel,admin,web}/**/*.{ts,tsx}',
   'packages/ui/**/*.{ts,tsx}',
+  'packages/menu-editor/**/*.{ts,tsx}',
 ];
 
 export default defineConfig(

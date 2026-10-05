@@ -10,6 +10,7 @@
   "packages/config": "0.2.0",
   "packages/contracts": "0.7.0",
   "packages/db": "0.4.0",
+  "packages/menu-editor": "0.1.0",
   "packages/observability": "0.4.0",
   "packages/redis": "0.3.0",
   "packages/ui": "0.4.2"

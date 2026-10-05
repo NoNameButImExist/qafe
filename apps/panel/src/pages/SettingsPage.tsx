@@ -3,8 +3,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CircleAlert, CircleCheck, Lock, Save, Wifi } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, Field, Input, SectionTitle, Segmented, Select, Switch } from '@qafe/ui';
-import { ImageInput } from '../components/ImageInput';
+import {
+  Button,
+  Card,
+  Field,
+  ImageInput,
+  Input,
+  SectionTitle,
+  Segmented,
+  Select,
+  Switch,
+} from '@qafe/ui';
 import { api, errorKey } from '../lib/api';
 import { settingsQuery } from '../lib/queries';
 import { useCan } from '../lib/useAuth';
@@ -183,6 +192,7 @@ function ProfileSection({ data, disabled }: { data: VenueSettings; disabled: boo
       <Field label={t('settings.logo')}>
         {() => (
           <ImageInput
+            errorText={(e) => t(errorKey(e))}
             url={data.profile.logoUrl}
             disabled={disabled}
             chooseLabel={t('settings.uploadLogo')}

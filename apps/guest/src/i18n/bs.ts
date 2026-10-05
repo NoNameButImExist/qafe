@@ -43,6 +43,11 @@ const bs = {
   },
   tabs: { menu: 'Meni', orders: 'Narudžbe', bill: 'Račun' },
   menu: {
+    search: 'Pretraži meni',
+    clearSearch: 'Obriši pretragu',
+    results_one: '{{count}} rezultat',
+    results_few: '{{count}} rezultata',
+    results_other: '{{count}} rezultata',
     empty: 'Meni još nije objavljen.',
     soldOut: 'Nema',
     add: 'Dodaj',
@@ -114,6 +119,8 @@ const bs = {
     disputeConfirmed: 'Konobar je potvrdio narudžbu',
   },
   bill: {
+    paid: 'Već plaćeno',
+    remaining: 'Preostalo za platiti',
     title: 'Račun stola',
     empty: 'Na računu još nema prihvaćenih narudžbi.',
     total: 'Ukupno',

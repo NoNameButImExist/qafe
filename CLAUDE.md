@@ -113,6 +113,7 @@ packages/
   observability/ OpenTelemetry setup
   redis/        ioredis client, key prefixes (redisKey), fixed-window rate limit
   ui/           shared React components
+  menu-editor/  the menu editor, used by panel and admin (FR-SEF-17..19, FR-ADM-07)
 infra/docker/   service.Dockerfile (api, worker), web.Dockerfile + nginx.conf (frontends)
 docs/           requirements, DB schema + ERD, original start prompt
 ```
@@ -166,7 +167,10 @@ is for typechecking only. Apps depend on them with `workspace:*`.
   token, so the printed code stops working. Staff rules: nobody changes their own role or status,
   only an owner hands out or changes the owner role, and a venue always keeps an active owner.
 - `catalog`: the menu (`/catalog/*` for staff, `/admin/venues/:venueId/catalog/*` for admins,
-  FR-ADM-07). Every call runs in the venue's RLS context; every change goes to `catalog.outbox`.
+  FR-ADM-07). The UI is `@qafe/menu-editor` (`<MenuEditor request queryKey errorText currency
+canEdit canToggle stations />`, its texts in `menuEditorMessages` under `menu.*`); panel `/menu`
+  and admin `/venues/$venueId/menu` only pass the config. Apps import
+  `@qafe/menu-editor/styles.css` after the theme so Tailwind sees its classes. Every call runs in the venue's RLS context; every change goes to `catalog.outbox`.
   Prices are decimal strings ("2.50"); input accepts "2,5". Items are soft-deleted.
 - `audit`: read side of the audit log. `audit.audit_logs` and `reporting.order_item_facts` are
   partitioned by month (`app.ensure_month_partitions`, worker job nightly, DEFAULT partition as a
@@ -206,7 +210,18 @@ is for typechecking only. Apps depend on them with `workspace:*`.
   methods) and closes it. Payment (billing schema) and session (ordering) are separate: payment
   `pending` → `SessionLedger.closeAfterPayment` (ordering's public interface) re-checks the bill
   under the session lock → `completed`, or `failed` with `bill_changed` / `open_orders`. Events go
-  to `billing.outbox`. Partial payments (V2) and fiscalisation (V3) are not built.
+  to `billing.outbox`. Partial payment (FR-KON-20): `POST /staff/sessions/:id/pay-items`
+  (items + quantities, `billing.payment_items`), `GET /staff/sessions/:id/payments`;
+  `SessionLedger.recordPartialPayment` raises `table_sessions.paid_amount`, the bill carries
+  `paid` / `remaining`, `/pay` pays the remainder, and paying the last items closes the table.
+  `session.settled` carries `itemMethods`, so facts get each item's real method. Fiscalisation
+  (V3) is not built.
+- Moving (FR-KON-14, `TableMovesService`): `POST /staff/orders/:id/move` and
+  `POST /staff/sessions/:id/move` (`orders.update`). Onto a free table the session moves; onto an
+  occupied one it merges (orders, requests and guests move, the source closes with
+  `merged_into_session_id`). A partly paid session never moves (`partially_paid`).
+- `GET /reports/me?date=` (FR-KON-23, `MyDayController`, any staff member): the member's own
+  paid turnover for a business day from the report facts; staff app page `/me` ("Moj dan").
 - `reporting`: sales reports (FR-SEF-24, 25) from `reporting.order_item_facts`, one row per paid
   item. When a table is paid, `SessionLedger` publishes `session.settled` (ordering.outbox, same
   transaction as the close) with every billed item and its snapshot (prices, VAT, waiter name via
@@ -248,11 +263,22 @@ is for typechecking only. Apps depend on them with `workspace:*`.
 
 - React 19, TanStack Router (code-based routes, filters in the URL) and TanStack Query, Tailwind 4,
   lucide-react icons, i18next (`bs` source of truth in `src/i18n/bs.ts`, `en` must match its shape).
+- Platform themes (FR-ADM-22): `<html data-brand="warm|ice">` switches the CSS variables in
+  `@qafe/ui/theme.css` (no `data-brand` = the classic navy/blue the guest app keeps). The super
+  admin sets it in admin "Postavke" (`PUT /admin/settings/theme`, `core.platform_settings`); apps
+  call `applyStoredBrand()` before render and `syncPlatformBrand()` (public `GET /platform/theme`,
+  no-cache, on focus and every 5 min). Unknown values are ignored. `@qafe/ui` must not import Zod
+  at runtime (it would land in the guest bundle): brand names are checked against a plain list.
+  A new theme = a CSS block + its name in `THEME_BRANDS`, plus the landing page's own token
+  block in `apps/web/src/index.css` (`apps/web/src/brand.ts` syncs it the same way; Traefik
+  routes `/api` on the bare `DOMAIN` too, for that).
+- SMTP (FR-ADM-23): `/admin/settings/smtp` (+ `/test`, nodemailer); password AES-256-GCM with
+  `SETTINGS_ENCRYPTION_KEY`, never returned or audited.
 - Shared UI lives in `@qafe/ui`: primitives (Button, Field/Input/Select/Textarea, Card, Sheet, Menu,
   Switch, Segmented, Pagination, ConfirmDialog, Notice, CopyRow, StatusBadge), `AuthBrandPanel`,
   `Brand`, theme and language switches. Apps import `@qafe/ui/theme.css` after Tailwind; it holds
-  the brand tokens (navy `#0B1F3F`, blue `#0070E8`, light and dark) and tells Tailwind to scan the
-  package. Components use semantic classes (`bg-canvas`, `bg-surface`, `text-ink`, `text-muted`,
+  the brand tokens (per theme, light and dark; "navy-_" = the theme's deep colour, "blue-_" its
+  accent) and tells Tailwind to scan the package. Components use semantic classes (`bg-canvas`, `bg-surface`, `text-ink`, `text-muted`,
   `bg-primary`, `text-accent`), never raw hex. Fonts are self-hosted (Poppins headings, Inter text).
   `@qafe/ui` is built to `dist/`; `pnpm dev` runs its tsc watch. Its components use the i18n keys
   `common.*` and `venues.status.*`, which every app must define.
@@ -351,19 +377,14 @@ is for typechecking only. Apps depend on them with `workspace:*`.
 
 1. Monorepo, tooling, root files, CI, release-please, Dockerfiles ← **done**
 2. `packages/db`: Postgres in Docker, migration, RLS helper, RLS isolation test, seed ← **done**
-3. `api` with `core` module ← **partly done**: health live/ready, admin auth, admin venues
-   (list, detail, edit, status, modules), admin users (list, block, password reset),
-   `GET /venues/:slug/public`; `audit` module (read side). Missing: OTel, staff login
-   (slug + username, PIN), password change, TOTP.
-4. Remaining modules, `redis`, a BullMQ example job ← **ordering, billing, reporting and redis done**,
-   worker relays all outboxes (audit log, report facts, Web Push). Missing: BullMQ jobs.
-5. Frontends ← **admin mostly done**, **panel started**: admin has login, overview, venues + venue
-   page, modules, users, audit log, system monitoring (missing: menu UI for FR-ADM-07 (API ready)).
-   Panel has login, overview, menu, settings (incl. opening hours), space and QR, staff, orders
-   and reports.
-   Guest app done for MVP ordering (FR-GOS-01..04, 08..16, 20..27); staff app done for the MVP
-   waiter flow (FR-KON-01, 02, 04..13, 15..19, 21, 22) with push, PIN sign-in and offline mode (NFR-05).
-6. Full Docker: compose (observability, apps, tools), Traefik, prod compose, Makefile ← **done**
-   (monitoring and nightly backups since v0.5, point-in-time recovery since v0.6)
+3. `api` with `core` ← **done**: health, admin and staff auth (TOTP, PIN on shared devices,
+   temporary passwords), venues, users, modules, settings, audit, OTel metrics.
+4. Remaining modules, `redis`, BullMQ ← **done**: catalog, ordering, billing, reporting, KDS, worker
+   (outbox relay, audit log, report facts, Web Push, maintenance and partition jobs).
+5. Frontends ← **MVP done**: admin (incl. menu of any venue, monitoring, settings), panel, guest,
+   staff (offline, PIN), landing page.
+6. Full Docker: compose, Traefik, prod compose, Makefile, monitoring, backups, PITR ← **done**
+7. V2 (from `docs/requirements.md`, without online payment) ← **in progress**: batch 1 done
+   (partial payment, move / merge tables, guest menu search, own turnover)
 
-Not yet: alerts (FR-ADM-21) and request tracing (FR-ADM-20), both V2. Those follow `docs/requirements.md`.
+Not yet: the remaining V2 items and V3. Those follow `docs/requirements.md`.

@@ -59,6 +59,8 @@ export function refreshSession(): Promise<AuthSession | null> {
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   body?: unknown;
+  /** Multipart upload instead of JSON (menu images, FR-ADM-07). */
+  form?: FormData;
   query?: Record<string, string | number | undefined>;
   /** Internal: do not try to refresh again. */
   retried?: boolean;
@@ -79,7 +81,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
         ...(options.body !== undefined ? { 'content-type': 'application/json' } : {}),
         ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
       },
-      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      body: options.form ?? (options.body !== undefined ? JSON.stringify(options.body) : undefined),
     });
   } catch {
     throw new ApiError(0, 'network', 'Network error');

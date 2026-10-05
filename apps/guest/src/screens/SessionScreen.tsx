@@ -18,6 +18,7 @@ import { useCart } from '../lib/cart';
 import { formatMoney, multiplyMoney, sumMoney } from '../lib/format';
 import { CurrentNoticeContext, NoticeContext } from '../lib/notice';
 import { menuQuery } from '../lib/queries';
+import { resubscribe } from '../lib/realtime';
 
 type Tab = 'menu' | 'orders' | 'bill';
 
@@ -51,6 +52,15 @@ export function SessionScreen({ venue, state }: { venue: GuestVenue; state: Gues
       }
     }
   }, [state]);
+
+  // The waiter moved or merged the table (FR-KON-14): listen to the new table's updates.
+  const sessionId = state.session.id;
+  const firstSession = useRef(sessionId);
+  useEffect(() => {
+    if (firstSession.current === sessionId) return;
+    firstSession.current = sessionId;
+    resubscribe();
+  }, [sessionId]);
 
   useEffect(() => {
     // Braces matter: newer browsers return a Promise from scrollTo.

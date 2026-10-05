@@ -314,6 +314,13 @@ export interface CorePermissions {
   module: string;
 }
 
+export interface CorePlatformSettings {
+  key: string;
+  updated_at: Generated<Timestamp>;
+  updated_by: string | null;
+  value: Json;
+}
+
 export interface CorePrepStations {
   created_at: Generated<Timestamp>;
   id: Generated<string>;
@@ -637,7 +644,9 @@ export interface OrderingTableSessions {
   closed_by_member_id: string | null;
   host_guest_id: string | null;
   id: Generated<string>;
+  merged_into_session_id: string | null;
   opened_at: Generated<Timestamp>;
+  paid_amount: Generated<Numeric>;
   requested_payment_method: AppPaymentMethod | null;
   status: Generated<AppSessionStatus>;
   table_id: string;
@@ -701,6 +710,7 @@ export interface DB {
   'core.modules': CoreModules;
   'core.outbox': CoreOutbox;
   'core.permissions': CorePermissions;
+  'core.platform_settings': CorePlatformSettings;
   'core.prep_stations': CorePrepStations;
   'core.role_permissions': CoreRolePermissions;
   'core.shifts': CoreShifts;

@@ -1,0 +1,50 @@
+{
+  "name": "@qafe/menu-editor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The menu editor (categories, items, modifier groups, images, drag and drop), shared by the venue panel and the admin panel (FR-SEF-17..19, FR-ADM-07).",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./styles.css": "./src/styles.css"
+  },
+  "files": [
+    "dist",
+    "src/styles.css"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run --passWithNoTests",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.0.0",
+    "react": "^19.0.0",
+    "react-i18next": "^17.0.0"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@qafe/contracts": "workspace:*",
+    "@qafe/ui": "workspace:*",
+    "lucide-react": "^1.49.0"
+  },
+  "devDependencies": {
+    "@qafe/config": "workspace:*",
+    "@tanstack/react-query": "^5.104.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "i18next": "^26.4.2",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-i18next": "^17.0.15",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.2"
+  }
+}

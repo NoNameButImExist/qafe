@@ -20,6 +20,8 @@ const PUBLIC = new Set([
   'POST /auth/staff/device/forget',
   'GET /.well-known/jwks.json',
   'GET /venues/:slug/public',
+  // Colour theme: the sign-in pages use it before anyone is signed in.
+  'GET /platform/theme',
   // Guests have no account: GuestGuard takes the venue from the host and the device cookie.
   'GET /guest/venue',
   'GET /guest/menu',

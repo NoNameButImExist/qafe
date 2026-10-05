@@ -1,4 +1,5 @@
 import type {
+  MoveSessionResult,
   OrderLineRequest,
   PaymentResult,
   StaffSessionDetail,
@@ -13,6 +14,7 @@ import {
   ChevronLeft,
   Crown,
   KeyRound,
+  MoveRight,
   Plus,
   ReceiptText,
 } from 'lucide-react';
@@ -20,6 +22,8 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ItemPicker } from '../components/ItemPicker';
 import { OrderCard } from '../components/OrderCard';
+import { PayItemsSheet } from '../components/PayItemsSheet';
+import { TablePicker } from '../components/TablePicker';
 import { api } from '../lib/api';
 import { formatMoney, formatTime } from '../lib/format';
 import { floorQuery, sessionQuery } from '../lib/queries';
@@ -109,7 +113,19 @@ function SessionView({ detail }: { detail: StaffSessionDetail }) {
     remove: useCan('sessions.remove'),
     close: useCan('sessions.close'),
     pay: useCan('payments.process'),
+    move: useCan('orders.update'),
   };
+  const [moving, setMoving] = useState(false);
+  const [payingItems, setPayingItems] = useState(false);
+  // FR-KON-14: onto a free table the guests move; onto an occupied one the tables merge.
+  const move = useAction(
+    (tableId: string) =>
+      api<MoveSessionResult>(`/staff/sessions/${detail.id}/move`, {
+        method: 'POST',
+        body: { tableId },
+      }),
+    (r) => (r.merged ? t('move.merged') : t('move.moved')),
+  );
   const base = `/staff/sessions/${detail.id}`;
   const verify = useAction(() => api<void>(`${base}/verify`, { method: 'POST' }));
   const approve = useAction((guestId: string) =>
@@ -144,6 +160,19 @@ function SessionView({ detail }: { detail: StaffSessionDetail }) {
 
   return (
     <>
+      {can.move && (
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={<MoveRight className="size-4" />}
+            onClick={() => setMoving(true)}
+          >
+            {t('move.table')}
+          </Button>
+        </div>
+      )}
+
       {/* Verification (FR-GOS-21) */}
       {!detail.verified ? (
         <section className="rounded-2xl border border-warning/30 bg-warning/8 p-4">
@@ -304,6 +333,19 @@ function SessionView({ detail }: { detail: StaffSessionDetail }) {
                 <span>{t('table.vat')}</span>
                 <span className="tabular-nums">{formatMoney(detail.bill.vatAmount)}</span>
               </p>
+              {detail.bill.paid !== '0.00' && (
+                // Partial payments so far (FR-KON-20).
+                <>
+                  <p className="mt-2 flex justify-between text-sm font-semibold text-success">
+                    <span>{t('payItems.paidSoFar')}</span>
+                    <span className="tabular-nums">−{formatMoney(detail.bill.paid)}</span>
+                  </p>
+                  <p className="flex justify-between text-lg font-bold text-ink">
+                    <span>{t('payItems.remaining')}</span>
+                    <span className="tabular-nums">{formatMoney(detail.bill.remaining)}</span>
+                  </p>
+                </>
+              )}
             </div>
           </>
         )}
@@ -313,10 +355,19 @@ function SessionView({ detail }: { detail: StaffSessionDetail }) {
           </p>
         )}
         <div className="mt-4 flex flex-col gap-2">
-          {can.pay && detail.bill.total !== '0.00' && (
-            <Button size="lg" disabled={detail.blockingOrders > 0} onClick={() => setPaying(true)}>
-              {t('table.pay', { total: formatMoney(detail.bill.total) })}
-            </Button>
+          {can.pay && detail.bill.remaining !== '0.00' && (
+            <>
+              <Button
+                size="lg"
+                disabled={detail.blockingOrders > 0}
+                onClick={() => setPaying(true)}
+              >
+                {t('table.pay', { total: formatMoney(detail.bill.remaining) })}
+              </Button>
+              <Button size="lg" variant="secondary" onClick={() => setPayingItems(true)}>
+                {t('payItems.open')}
+              </Button>
+            </>
           )}
           {can.close && detail.bill.total === '0.00' && (
             <Button
@@ -406,6 +457,28 @@ function SessionView({ detail }: { detail: StaffSessionDetail }) {
         onClose={() => setPaying(false)}
         onPaid={() => void navigate({ to: '/' })}
       />
+      <PayItemsSheet
+        open={payingItems}
+        detail={detail}
+        onClose={() => setPayingItems(false)}
+        onPaid={() => setPayingItems(false)}
+      />
+      <TablePicker
+        open={moving}
+        title={t('move.tableTitle', { label: detail.tableLabel })}
+        hint={t('move.tableHint')}
+        excludeTableId={detail.tableId}
+        busy={move.isPending}
+        onClose={() => setMoving(false)}
+        onPick={(table) =>
+          move.mutate(table.id, {
+            onSuccess: () => {
+              setMoving(false);
+              void navigate({ to: '/table/$tableId', params: { tableId: table.id } });
+            },
+          })
+        }
+      />
     </>
   );
 }
@@ -459,8 +532,16 @@ function PaySheet({
       }
     >
       <p className="text-center font-display text-4xl font-bold text-ink tabular-nums">
-        {formatMoney(detail.bill.total)}
+        {formatMoney(detail.bill.remaining)}
       </p>
+      {detail.bill.paid !== '0.00' && (
+        <p className="mt-1 text-center text-xs text-muted">
+          {t('payItems.ofTotal', {
+            total: formatMoney(detail.bill.total),
+            paid: formatMoney(detail.bill.paid),
+          })}
+        </p>
+      )}
       <p className="mt-1 text-center text-xs text-muted">
         {t('table.vat')} {formatMoney(detail.bill.vatAmount)}
       </p>

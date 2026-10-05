@@ -182,6 +182,15 @@ CREATE TABLE core.staff_devices (
 );
 CREATE INDEX idx_staff_devices_venue ON core.staff_devices (venue_id) WHERE revoked_at IS NULL;
 
+-- Postavke platforme (FR-ADM-22, FR-ADM-23): tema ('theme' -> {"brand": "warm"|"ice"}) i SMTP
+-- ('smtp', lozinka šifrovana s SETTINGS_ENCRYPTION_KEY). Nije po lokalu, pa nema RLS.
+CREATE TABLE core.platform_settings (
+  key        varchar(40) PRIMARY KEY,
+  value      jsonb       NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  updated_by uuid        REFERENCES core.users(id) ON DELETE SET NULL
+);
+
 -- Katalog modula koje admin može uključiti (FR-ADM-06)
 CREATE TABLE core.modules (
   code        varchar(40) PRIMARY KEY,
@@ -503,6 +512,8 @@ CREATE TABLE ordering.table_sessions (
   requested_payment_method app.payment_method,
   closed_at                timestamptz,
   closed_by_member_id      uuid,
+  merged_into_session_id   uuid REFERENCES ordering.table_sessions(id), -- spajanje stolova (FR-KON-14)
+  paid_amount              numeric(12,2) NOT NULL DEFAULT 0 CHECK (paid_amount >= 0), -- djelimična naplata (FR-KON-20)
   UNIQUE (id, venue_id)
 );
 CREATE UNIQUE INDEX uq_table_sessions_active

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-  BillLine,
+  Bill,
   GuestStatus,
   OrderLineRequest,
   PaymentMethod,
@@ -120,7 +120,7 @@ export const StaffSessionDetail = z.object({
   guests: z.array(StaffSessionGuest),
   orders: z.array(StaffOrder),
   requests: z.array(ServiceRequestView),
-  bill: z.object({ lines: z.array(BillLine), total: z.string(), vatAmount: z.string() }),
+  bill: Bill,
   /** Orders that block payment: not yet accepted, or with an open dispute. */
   blockingOrders: z.number().int(),
   paymentMethods: z.array(z.object({ method: PaymentMethod, isDefault: z.boolean() })),
@@ -191,6 +191,56 @@ export type TablePin = z.infer<typeof TablePin>;
 /** "Nije naše": confirm the order belongs to the table, or cancel it (FR-GOS-25). */
 export const ResolveDisputeRequest = z.object({ action: z.enum(['confirm', 'cancel']) });
 export type ResolveDisputeRequest = z.infer<typeof ResolveDisputeRequest>;
+
+// ---------- Moving and merging (FR-KON-14) ----------
+
+/** POST /staff/orders/:id/move — the order goes to another table (its open session or a new one). */
+export const MoveOrderRequest = z.object({ tableId: z.uuid() });
+export type MoveOrderRequest = z.infer<typeof MoveOrderRequest>;
+
+/**
+ * POST /staff/sessions/:id/move — the whole table goes to another table: onto a free table
+ * it simply moves; onto an occupied one the two are merged into that one.
+ */
+export const MoveSessionRequest = z.object({ tableId: z.uuid() });
+export type MoveSessionRequest = z.infer<typeof MoveSessionRequest>;
+
+export const MoveSessionResult = z.object({
+  /** The session the guests are at now. */
+  sessionId: z.uuid(),
+  merged: z.boolean(),
+});
+export type MoveSessionResult = z.infer<typeof MoveSessionResult>;
+
+// ---------- Partial payment (FR-KON-20) ----------
+
+/** POST /staff/sessions/:id/pay-items — one guest pays some items; the table stays open. */
+export const PayItemsRequest = z.object({
+  method: z.enum(['cash', 'card']),
+  items: z
+    .array(z.object({ orderItemId: z.uuid(), quantity: z.number().int().min(1).max(500) }))
+    .min(1)
+    .max(200),
+});
+export type PayItemsRequest = z.infer<typeof PayItemsRequest>;
+
+/** GET /staff/sessions/:id/payments — what partial payments covered so far. */
+export const SessionPayments = z.object({
+  payments: z.array(
+    z.object({
+      id: z.uuid(),
+      method: PaymentMethod,
+      amount: z.string(),
+      createdAt: z.string(),
+      memberName: z.string().nullable(),
+      items: z.array(z.object({ orderItemId: z.uuid(), quantity: z.number().int() })),
+    }),
+  ),
+  /** Paid quantity per order item. */
+  paidQuantities: z.record(z.string(), z.number().int()),
+  paid: z.string(),
+});
+export type SessionPayments = z.infer<typeof SessionPayments>;
 
 /** Pay the whole table and close it (FR-KON-19, FR-KON-21). */
 export const PayRequest = z.object({ method: z.enum(['cash', 'card']) });

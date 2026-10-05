@@ -1,12 +1,20 @@
 import type { GuestMenu, GuestMenuItem } from '@qafe/contracts';
 import { cn } from '@qafe/ui';
 import { AnimatePresence, m } from 'motion/react';
-import { Plus } from 'lucide-react';
+import { Plus, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cart, useCart } from '../lib/cart';
 import { formatMoney } from '../lib/format';
 import { burst } from '../motion/burst';
+
+/** Lower case without accents, so "cevapi" finds "Ćevapi" (FR-GOS-05). */
+const fold = (text: string) =>
+  text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd')
+    .toLowerCase();
 
 /** Height of the sticky header and chip bar: sections stop just below them. */
 const STICKY_OFFSET = 128;
@@ -27,6 +35,18 @@ export function MenuView({
 }) {
   const { t, i18n } = useTranslation();
   const [active, setActive] = useState(menu.categories[0]?.id ?? null);
+  // FR-GOS-05: search by name and description, across categories.
+  const [query, setQuery] = useState('');
+  const found = useMemo(() => {
+    const words = fold(query).split(/\s+/).filter(Boolean);
+    if (words.length === 0) return null;
+    return menu.categories.flatMap((c) =>
+      c.items.filter((item) => {
+        const text = fold(`${item.name} ${item.description ?? ''} ${c.name}`);
+        return words.every((w) => text.includes(w));
+      }),
+    );
+  }, [menu.categories, query]);
   const chips = useRef<HTMLElement>(null);
   const jumping = useRef(false);
   const { lines } = useCart();
@@ -79,40 +99,34 @@ export function MenuView({
   }
   return (
     <div>
-      <nav
-        ref={chips}
-        aria-label={t('tabs.menu')}
-        className="no-scrollbar sticky top-16 z-10 mt-2 flex gap-1.5 overflow-x-auto bg-canvas/90 px-4 py-3 backdrop-blur-md"
-      >
-        {menu.categories.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            data-chip={c.id}
-            aria-current={active === c.id ? 'true' : undefined}
-            onClick={() => jump(c.id)}
-            className={cn(
-              'relative shrink-0 rounded-full px-4 py-2 text-[13px] font-semibold transition-colors',
-              active === c.id ? 'text-on-primary' : 'text-muted hover:text-ink',
-            )}
-          >
-            {active === c.id && (
-              <m.span
-                layoutId="chip"
-                className="absolute inset-0 rounded-full bg-primary shadow-md shadow-primary/30"
-                transition={{ type: 'spring', stiffness: 500, damping: 38 }}
-              />
-            )}
-            <span className="relative">{c.name}</span>
-          </button>
-        ))}
-      </nav>
-      {menu.categories.map((c) => (
-        <section key={c.id} id={`c-${c.id}`} className="px-4 pt-5">
-          <h2 className="font-display text-xl font-semibold text-ink">{c.name}</h2>
-          {c.description && <p className="mt-0.5 text-sm text-muted">{c.description}</p>}
+      <div className="px-4 pt-3">
+        <label className="flex h-12 items-center gap-2 rounded-2xl border border-line bg-surface px-4 focus-within:border-primary">
+          <Search className="size-4 shrink-0 text-muted" aria-hidden />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t('menu.search')}
+            aria-label={t('menu.search')}
+            className="min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-muted [&::-webkit-search-cancel-button]:appearance-none"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              aria-label={t('menu.clearSearch')}
+              className="grid size-8 place-items-center rounded-full text-muted hover:text-ink"
+            >
+              <X className="size-4" />
+            </button>
+          )}
+        </label>
+      </div>
+      {found ? (
+        <section className="px-4 pt-4" aria-live="polite">
+          <p className="text-sm text-muted">{t('menu.results', { count: found.length })}</p>
           <ul className="mt-3 flex flex-col gap-3">
-            {c.items.map((item, index) => (
+            {found.map((item, index) => (
               <ItemCard
                 key={item.id}
                 item={item}
@@ -124,9 +138,60 @@ export function MenuView({
               />
             ))}
           </ul>
+          <div className="h-8" />
         </section>
-      ))}
-      <div className="h-8" />
+      ) : (
+        <>
+          <nav
+            ref={chips}
+            aria-label={t('tabs.menu')}
+            className="no-scrollbar sticky top-16 z-10 mt-2 flex gap-1.5 overflow-x-auto bg-canvas/90 px-4 py-3 backdrop-blur-md"
+          >
+            {menu.categories.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                data-chip={c.id}
+                aria-current={active === c.id ? 'true' : undefined}
+                onClick={() => jump(c.id)}
+                className={cn(
+                  'relative shrink-0 rounded-full px-4 py-2 text-[13px] font-semibold transition-colors',
+                  active === c.id ? 'text-on-primary' : 'text-muted hover:text-ink',
+                )}
+              >
+                {active === c.id && (
+                  <m.span
+                    layoutId="chip"
+                    className="absolute inset-0 rounded-full bg-primary shadow-md shadow-primary/30"
+                    transition={{ type: 'spring', stiffness: 500, damping: 38 }}
+                  />
+                )}
+                <span className="relative">{c.name}</span>
+              </button>
+            ))}
+          </nav>
+          {menu.categories.map((c) => (
+            <section key={c.id} id={`c-${c.id}`} className="px-4 pt-5">
+              <h2 className="font-display text-xl font-semibold text-ink">{c.name}</h2>
+              {c.description && <p className="mt-0.5 text-sm text-muted">{c.description}</p>}
+              <ul className="mt-3 flex flex-col gap-3">
+                {c.items.map((item, index) => (
+                  <ItemCard
+                    key={item.id}
+                    item={item}
+                    index={index}
+                    currency={currency}
+                    locale={i18n.language}
+                    count={inCart.get(item.id) ?? 0}
+                    onPick={onPick}
+                  />
+                ))}
+              </ul>
+            </section>
+          ))}
+          <div className="h-8" />
+        </>
+      )}
     </div>
   );
 }

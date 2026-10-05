@@ -1,3 +1,4 @@
+import { menuEditorMessages } from '@qafe/menu-editor';
 import type { Messages } from './bs';
 
 const en: Messages = {
@@ -5,6 +6,8 @@ const en: Messages = {
     tagline: 'Scan. Order. Enjoy.',
   },
   common: {
+    delete: 'Delete',
+    noPermission: 'You do not have permission for this part.',
     loading: 'Loading…',
     retry: 'Try again',
     cancel: 'Cancel',
@@ -34,6 +37,9 @@ const en: Messages = {
     changed: 'Your password has been changed.',
   },
   errors: {
+    smtp_failed: 'The SMTP server refused the message.',
+    smtp_not_configured: 'SMTP is not set up yet.',
+    encryption_key_missing: 'SETTINGS_ENCRYPTION_KEY is not set on the server.',
     password_change_required: 'Change the temporary password first.',
     invalid_code: 'The code is wrong.',
     mfa_unavailable: 'Two-factor sign-in is not configured on this server.',
@@ -121,7 +127,59 @@ const en: Messages = {
     durationMinutes: '{{m}} min',
     windows: { '1h': '1 h', '24h': '24 h', '7d': '7 days' },
   },
+  settings: {
+    title: 'Platform settings',
+    subtitle:
+      'Look of the admin, the venue panel and the staff app, and the server for sending e-mail.',
+    theme: {
+      title: 'Theme',
+      hint: "Applies to the whole platform: admin, venue panel and staff app. The change shows at once, without reloading; open apps pick it up within 5 minutes or when they get focus again. Light or dark stays each user's own choice. The guest menu has its own look.",
+      switchTo: 'Switch to: {{name}}',
+      active: 'Active',
+      use: 'Use',
+      saved: 'The "{{name}}" theme is on for the whole platform.',
+      names: {
+        warm: 'Warm',
+        ice: 'Ice',
+      },
+      descriptions: {
+        warm: 'Green and sand, like the landing page.',
+        ice: 'Cool blue tones, for summer.',
+      },
+    },
+    smtp: {
+      title: 'E-mail (SMTP)',
+      hint: 'The server the platform sends e-mail through. The password is stored encrypted and never shown.',
+      host: 'SMTP server',
+      port: 'Port',
+      security: 'Connection security',
+      noTls: 'No encryption (25)',
+      username: 'Username',
+      password: 'Password',
+      passwordKept: 'A password is stored. Leave empty to keep it.',
+      noKey: 'SETTINGS_ENCRYPTION_KEY is not set on the server, so a password cannot be stored.',
+      removePassword: 'Remove the stored password',
+      fromName: 'Sender name',
+      fromEmail: 'Sender e-mail',
+      save: 'Save SMTP settings',
+      saved: 'SMTP settings saved.',
+      testTitle: 'Test e-mail',
+      testHint: 'Sends a short message with the saved settings (save them first).',
+      testTo: 'Recipient, e.g. you@domain.com',
+      test: 'Send test e-mail',
+      testSent: 'A test e-mail was sent to {{to}}.',
+      testFailed: 'Sending failed: {{reason}}',
+    },
+  },
+  menu: menuEditorMessages.en,
+  venueMenu: {
+    title: 'Menu: {{name}}',
+    subtitle:
+      "You are editing the venue's menu as an administrator. Guests see changes at once; they are recorded in the audit log.",
+    back: 'Back to {{name}}',
+  },
   nav: {
+    settings: 'Settings',
     account: 'My account',
     overview: 'Overview',
     venues: 'Venues',
@@ -232,6 +290,7 @@ const en: Messages = {
     done: 'Done',
   },
   venue: {
+    editMenu: 'Edit menu',
     back: 'Venues',
     since: 'On the platform since {{date}}',
     details: 'Venue details',
@@ -372,6 +431,12 @@ const en: Messages = {
       table_updated: 'Table changed',
       table_deleted: 'Table deleted',
       table_qr_rotated: 'QR code replaced',
+      order_moved: 'Order moved to another table',
+      session_moved: 'Table moved',
+      session_merged: 'Tables merged',
+      session_partially_paid: 'Partial payment',
+      platform_theme_changed: 'Platform theme changed',
+      platform_smtp_updated: 'SMTP settings changed',
       staff_device_linked: 'Device linked for PIN sign-in',
       staff_device_revoked: 'Device for PIN sign-in removed',
       staff_created: 'Staff account created',
@@ -398,6 +463,14 @@ const en: Messages = {
       payment_failed: 'Payment failed',
     },
     fields: {
+      brand: 'Theme',
+      host: 'SMTP server',
+      port: 'Port',
+      security: 'Connection security',
+      username: 'Username',
+      fromName: 'Sender name',
+      fromEmail: 'Sender e-mail',
+      passwordChanged: 'Password changed',
       label: 'Label',
       seats: 'Seats',
       area_id: 'Area',

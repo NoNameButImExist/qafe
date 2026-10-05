@@ -288,6 +288,8 @@ describe('orders (FR-GOS-09..16, 25, 27, NFR-06)', () => {
       ],
       total: '7.00',
       vatAmount: '1.02',
+      paid: '0.00',
+      remaining: '7.00',
     });
     // Accepting twice is a conflict, not a second history row.
     const again = await staffCall(t, waiter, 'POST', `/staff/orders/${after.orders[0]!.id}/accept`);

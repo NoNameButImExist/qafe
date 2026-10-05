@@ -50,6 +50,8 @@ Administrator upravlja lokalima i korisnicima na nivou cijele platforme. Ne radi
 | FR-ADM-14 | Statistika | Zbirni pregled: broj aktivnih lokala, narudžbi i prometa po danu. | V2 |
 | FR-ADM-15 | Obavijesti | Slanje obavijesti svim lokalima, npr. o planiranom održavanju. | V3 |
 | FR-ADM-16 | Pretplate | Planovi pretplate, naplata i fakture za lokale. | V3 |
+| FR-ADM-22 | Tema | Izbor teme (palete boja) za admin, panel lokala i aplikaciju za osoblje, za cijelu platformu. Promjena se vidi bez ponovnog učitavanja. Svijetla ili tamna varijanta ostaje izbor korisnika. | MVP |
+| FR-ADM-23 | Email | SMTP postavke platforme (server, port, zaštita veze, korisnik, šifrovana lozinka, pošiljalac) i slanje testnog emaila. | MVP |
 
 ### Nadzor mikroservisa
 
@@ -372,6 +374,77 @@ U ovoj fazi je cilj bio pripremiti sistem za rast (hiljadu lokala i više) i za 
 - **Spora veza:** service worker čuva aplikaciju i zadnji meni lokala, pa se meni otvara brže i na slabom signalu.
 - **Šta se ne čuva:** sesija stola i narudžbe se nikad ne uzimaju iz kopije, jer bi zastarjelo stanje zavaralo. Naručivanje i dalje traži vezu.
 - Veličina JavaScripta je 170 KB gzip (granica 200 KB).
+
+## Urađeno u verziji 0.7 (5. 10. 2026.)
+
+### Teme platforme (FR-ADM-22)
+
+- **Šta je:** admin u novoj stranici „Postavke" bira temu za cijelu platformu. Admin, panel lokala, aplikacija za osoblje i početna stranica (qafe.ba) svima prelaze na nju. Postoje dvije teme:
+  - **Topla:** tamno zelena `#004643`, bež `#F0EDE5` i menta `#8FD1C4`, iste boje kao na početnoj stranici.
+  - **Ledena:** ljetna, glečer plava `#082C47`, ledeno plava `#0A6FA1` i inje `#5FD0F3`.
+- **Prebacivanje:** dugme „Prebaci na: …" ili klik na karticu teme s pregledom.
+- **Svijetla i tamna varijanta:** svaka tema ima obje, a varijanta ostaje lični izbor svakog korisnika (dugme za temu u gornjoj traci). Svi parovi teksta i pozadine su provjereni za WCAG AA (glavni tekst 11 do 17:1, sporedni najmanje 4,5:1).
+- **Početna stranica:** ima svoje tokene boja (tamne i svijetle sekcije), pa je ledena tema za nju poseban skup istih tokena (`apps/web/src/index.css`), takođe provjeren za WCAG AA. Mijenja se i boja trake browsera. Da bi početna stranica na `qafe.ba` (bez poddomene) mogla pitati API za temu, Traefik sada `/api` šalje API-ju i s glavne domene.
+- **Gosti:** meni za goste zadržava svoj izgled. Izbor izgleda menija za šefa dolazi kasnije.
+
+**Kako je napravljeno, da promjena ne može srušiti stranicu:**
+- Tema je samo skup CSS varijabli na `<html data-brand="…">`. Komponente koriste semantička imena boja (`bg-primary`, `bg-navy-900`…), pa promjena ne mijenja raspored niti traži ponovno učitavanje. Boje se pri promjeni pretapaju 0,35 s, osim kad je na uređaju uključeno „smanji pokrete".
+- **Prije prvog prikaza:** stranica već u HTML-u ima toplu temu, a aplikacija odmah primijeni zadnju poznatu temu iz uređaja.
+- **Provjera na serveru:** tema se pita na serveru u pozadini (`GET /api/platform/theme`, javno, jer je koriste i stranice za prijavu), s ograničenjem od 4 s. To se ponavlja kad se prozor vrati u fokus i svakih 5 minuta.
+- **Kad nešto ne štima:** ako server ne odgovori ili vrati nepoznatu vrijednost, stranica zadržava boje koje već ima. Ako je vrijednost u bazi oštećena, server vraća zadanu (toplu) temu. Admin vidi promjenu odmah, a ako je server odbije, vraća se prethodna.
+- Promjena teme ide u audit log.
+- **Nova tema:** dodaje se jednim blokom varijabli u `@qafe/ui/theme.css` i imenom u `THEME_BRANDS` (`@qafe/contracts`). Provjera tipova javlja grešku ako se ta dva popisa razilaze.
+- **Zamijenjene fiksne boje:** talasi na stranici za prijavu, kartice na pregledu i grafikoni u izvještajima. QR kodovi i štampane kartice za stolove namjerno ostaju u svojim bojama, jer su za goste.
+
+### Uređivanje menija lokala iz admina (FR-ADM-07), zadnja MVP stavka
+
+- Na stranici lokala u adminu je dugme „Uredi meni". Ono otvara isti uređivač menija kao u panelu lokala: kategorije, artikli, cijene, slike, grupe dodataka, redoslijed povlačenjem i dostupnost.
+- Svaka izmjena ide kroz admin API lokala (`/admin/venues/:id/catalog/*`), radi u kontekstu tog lokala i upisuje se u audit log, sa adminom kao izvršiocem. Stanice pripreme (KDS) i dalje dodjeljuje šef.
+- Uređivač je premješten u zajednički paket `@qafe/menu-editor`, pa panel i admin koriste isti kod i iste tekstove. Svaka buduća izmjena menija (prevodi, template menija) radi se jednom. Komponenta za učitavanje slike je u `@qafe/ui`.
+- Provjereno u browseru: admin je dodao artikal i promijenio mu dostupnost, šef ga odmah vidi u panelu, a audit log bilježi admina.
+
+Time su sve MVP stavke urađene.
+
+### SMTP postavke (FR-ADM-23)
+
+- **Postavke:** u „Postavkama" admin unosi SMTP server, port, zaštitu veze (STARTTLS, TLS ili bez), korisničko ime, lozinku, ime i email pošiljaoca.
+- **Lozinka:** čuva se šifrovana (AES-256-GCM, poseban ključ `SETTINGS_ENCRYPTION_KEY`) i nikad se ne vraća u odgovoru niti upisuje u audit log. Prazno polje znači da lozinka ostaje ista, a postoji i opcija „Ukloni sačuvanu lozinku".
+- **Testni email:** dugme „Pošalji testni email" šalje kratku poruku sa sačuvanim postavkama. Ako server odbije, admin vidi razlog. Veza ima ograničenje od 10 do 15 sekundi, pa pogrešan server ne zadržava stranicu.
+- **Provjereno:** testni email je stigao na lokalni testni mail server (Mailpit).
+- **Biblioteka:** nodemailer, odobren za ovu fazu.
+- **Šta još nije urađeno:** slanje emailova iz same aplikacije (npr. reset lozinke, obavijesti). Postavke i slanje su spremni za to.
+
+
+## V2, prva grupa (5. 10. 2026.)
+
+Online plaćanje (FR-GOS-17) je namjerno izostavljeno.
+
+### Djelimična naplata (FR-KON-20)
+
+- Na stolu konobar bira „Naplati stavke“, označi koliko komada kojih stavki jedan gost plaća i naplati gotovinom ili karticom. Sto ostaje otvoren dok se sve ne plati.
+- Račun (konobaru i gostu) pokazuje ukupno, „Već plaćeno“ i „Preostalo“. Naplata cijelog stola naplaćuje samo ostatak. Ako su naplaćene stavke posljednje, sto se zatvara.
+- Svako plaćanje pamti koje stavke pokriva (`billing.payment_items`), pa izvještaji knjiže svaku stavku na način na koji je stvarno plaćena.
+- Sto koji je djelimično plaćen ne može se premjestiti niti spojiti (`partially_paid`).
+
+### Premještanje narudžbe i stolova, spajanje stolova (FR-KON-14)
+
+- **Narudžba:** „Premjesti na sto“ seli jednu narudžbu na drugi sto i njegov račun. Na slobodnom stolu otvara se nova sesija.
+- **Sto:** „Premjesti / spoji sto“. Na slobodan sto gosti prelaze sa svim narudžbama i zahtjevima. Na zauzet sto se stolovi spajaju: sve prelazi na taj sto, gosti s uređajima nastavljaju tamo, a stari sto se zatvara (`merged_into_session_id`).
+- Sve se upisuje u audit log.
+
+### Pretraga menija za goste (FR-GOS-05)
+
+- Polje za pretragu iznad menija. Traži po nazivu, opisu i kategoriji, bez obzira na kvačice („cevapi“ nalazi „Ćevapi“).
+
+### Moj dan (FR-KON-23)
+
+- Nova stranica „Moj dan“ u aplikaciji za osoblje: naplaćeni iznos, broj narudžbi i artikala, podjela po načinu plaćanja i pet najčešće naručenih artikala, za današnji poslovni dan ili za ranije dane (strelice).
+- Računa se ono što je naplaćeno na stolovima čije je narudžbe taj član osoblja prihvatio. Podaci su isti kao u izvještajima. Svaki član vidi samo svoje i za to mu ne treba pravo na izvještaje (`GET /reports/me`).
+
+### Provjereno
+
+- Integracioni testovi `table-v2` (djelimična naplata, premještanje, spajanje) i „Moj dan“ u `reports`.
+- Browser (telefon): naplata jedne stavke, pa ostatka, premještanje stola, „Moj dan“ i pretraga menija.
 
 ## Odgođene stavke
 

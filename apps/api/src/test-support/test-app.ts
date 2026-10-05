@@ -47,6 +47,7 @@ export async function testConfig(
     redis: { host: redis.getHost(), port: redis.getPort(), password: undefined },
     storage: { driver: 'memory' },
     monitoring: { prometheusUrl: null, grafanaUrl: null },
+    settings: { encryptionKey: Buffer.alloc(32, 7).toString('base64') },
     auth: {
       privateKeyPem: await exportPKCS8(keys.privateKey),
       publicKeyPem: await exportSPKI(keys.publicKey),

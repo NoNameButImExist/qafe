@@ -120,6 +120,7 @@ export class StaffSessionsService {
           'verification_code',
           'opened_at',
           'host_guest_id',
+          'paid_amount',
         ])
         .where('id', '=', sessionId)
         .executeTakeFirst();
@@ -151,7 +152,7 @@ export class StaffSessionsService {
         })),
         orders: orders.map(staffOrder),
         requests: requests.map((r) => r.view),
-        bill: buildBill(orders),
+        bill: buildBill(orders, session.paid_amount),
         blockingOrders: blockingOrders(orders),
         paymentMethods: settings.paymentMethods.filter((m) => m.method !== 'online'),
         orderRejectionEnabled: settings.orderRejectionEnabled,

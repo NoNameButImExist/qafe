@@ -3,9 +3,8 @@ import { ArrowLeft, Pencil, Plus, Trash, X } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, Field, Input, Sheet } from '@qafe/ui';
-import { api, errorKey } from '../../lib/api';
-import { formatDelta } from '../../lib/format';
-import { useStaff } from '../../lib/useAuth';
+import { useMenuEditor } from './context';
+import { formatDelta } from './format';
 import { useMenuMutation } from './useMenuMutation';
 
 /** FR-SEF-18: groups of choices with min/max and an extra charge per option. */
@@ -21,11 +20,11 @@ export function ModifierGroupsSheet({
   onNotice: (text: string) => void;
 }) {
   const { t, i18n } = useTranslation();
-  const { venue } = useStaff();
+  const { request, currency } = useMenuEditor();
   const [editing, setEditing] = useState<ModifierGroup | 'new' | null>(null);
   const [deleting, setDeleting] = useState<ModifierGroup | null>(null);
   const remove = useMenuMutation((id: string) =>
-    api<Menu>(`/catalog/modifier-groups/${id}`, { method: 'DELETE' }),
+    request<Menu>(`/modifier-groups/${id}`, { method: 'DELETE' }),
   );
 
   function close() {
@@ -98,9 +97,9 @@ export function ModifierGroupsSheet({
                     {g.options.map((o) => (
                       <li key={o.id} className="rounded-lg bg-surface-2 px-2 py-1 text-xs text-ink">
                         {o.name}
-                        {formatDelta(o.priceDelta, venue.currency, i18n.language) && (
+                        {formatDelta(o.priceDelta, currency, i18n.language) && (
                           <span className="ml-1 text-muted">
-                            {formatDelta(o.priceDelta, venue.currency, i18n.language)}
+                            {formatDelta(o.priceDelta, currency, i18n.language)}
                           </span>
                         )}
                       </li>
@@ -147,6 +146,7 @@ function GroupEditor({
   onBack: () => void;
 }) {
   const { t } = useTranslation();
+  const { request, errorText } = useMenuEditor();
   const [name, setName] = useState(group?.name ?? '');
   const [min, setMin] = useState(group?.minSelect ?? 0);
   const [max, setMax] = useState(group?.maxSelect ?? 1);
@@ -164,8 +164,8 @@ function GroupEditor({
 
   const save = useMenuMutation(() =>
     group
-      ? api<Menu>(`/catalog/modifier-groups/${group.id}`, { method: 'PUT', body })
-      : api<Menu>('/catalog/modifier-groups', { method: 'POST', body }),
+      ? request<Menu>(`/modifier-groups/${group.id}`, { method: 'PUT', body })
+      : request<Menu>('/modifier-groups', { method: 'POST', body }),
   );
 
   const update = (index: number, patch: Partial<(typeof options)[number]>) =>
@@ -188,7 +188,7 @@ function GroupEditor({
         <ArrowLeft className="size-4" />
         {t('menu.modifiers.title')}
       </button>
-      {save.isError && <p className="text-sm font-medium text-danger">{t(errorKey(save.error))}</p>}
+      {save.isError && <p className="text-sm font-medium text-danger">{errorText(save.error)}</p>}
 
       <Field label={t('menu.modifiers.name')} required>
         {({ id }) => (
