@@ -8,9 +8,18 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ─────────────────────────────────────────────────────────────
-   qafe.ba brand tokens. Swap values here to retheme; components
-   only use the semantic names (bg-canvas, text-ink, bg-primary…).
-   Brand: navy #0B1F3F, blue #0070E8 (light) / #0086FA (on navy).
+   qafe.ba brand tokens. Components only use the semantic names
+   (bg-canvas, text-ink, bg-primary, bg-navy-900, text-blue-bright…),
+   so a theme is just another set of these variables.
+
+   Themes (data-brand on <html>, set for the whole platform by the super
+   admin; light/dark stays each member's own choice):
+     (none)  classic navy #0B1F3F + blue #0070E8: the guest app
+     warm    deep teal #004643 + sand #F0EDE5 + mint #8FD1C4 (landing page)
+     ice     glacier navy #082C47 + ice blue #0A6FA1 + frost #5FD0F3
+   "navy-*" is a theme's deep colour, "blue-*" its accent. Every pair of
+   text and background is checked for WCAG AA in light and dark.
+   A new theme: a block below + its name in THEME_BRANDS (@qafe/contracts).
    ───────────────────────────────────────────────────────────── */
 :root {
   --navy-950: #061426;
@@ -60,6 +69,108 @@
   --sidebar: #081a33;
 }
 
+/* ── warm: green and sand ─────────────────────────────────── */
+:root[data-brand='warm'] {
+  --navy-950: #002a28;
+  --navy-900: #003835;
+  --navy-800: #0b524e;
+  --navy-700: #155f5a;
+  --blue-600: #0b6b64;
+  --blue-700: #004643;
+  --blue-400: #8fd1c4;
+
+  --canvas: #f3f0e8;
+  --surface: #fffdf8;
+  --surface-2: #e9e4d8;
+  --line: #ddd5c5;
+  --line-strong: #cbc0ab;
+  --ink: #0f3a36;
+  --muted: #4d6c68;
+  --primary: #004643;
+  --primary-hover: #003532;
+  --on-primary: #f0ede5;
+  --accent: #0b6b64;
+  --success: #15803d;
+  --warning: #b45309;
+  --danger: #c2410c;
+  --shadow-card: 0 10px 26px rgb(0 70 67 / 0.08);
+  --sidebar: #003835;
+}
+:root[data-brand='warm'].dark {
+  --canvas: #001f1d;
+  --surface: #002e2b;
+  --surface-2: #0b4440;
+  --line: #14524d;
+  --line-strong: #2a6b65;
+  --ink: #f0ede5;
+  --muted: #a9bdb7;
+  --primary: #8fd1c4;
+  --primary-hover: #a9ddd2;
+  --on-primary: #00302d;
+  --accent: #8fd1c4;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --shadow-card: 0 12px 34px rgb(0 0 0 / 0.4);
+  --sidebar: #001a18;
+}
+
+/* ── ice: cool summer theme ───────────────────────────────── */
+:root[data-brand='ice'] {
+  --navy-950: #04192b;
+  --navy-900: #082c47;
+  --navy-800: #0d3a5c;
+  --navy-700: #144a72;
+  --blue-600: #0a6fa1;
+  --blue-700: #085a84;
+  --blue-400: #5fd0f3;
+
+  --canvas: #f1f7fa;
+  --surface: #ffffff;
+  --surface-2: #e3eff5;
+  --line: #d3e4ec;
+  --line-strong: #b3ccd9;
+  --ink: #082c47;
+  --muted: #4c6779;
+  --primary: #0a6fa1;
+  --primary-hover: #085a84;
+  --on-primary: #ffffff;
+  --accent: #0a6796;
+  --success: #15803d;
+  --warning: #b45309;
+  --danger: #dc2626;
+  --shadow-card: 0 10px 26px rgb(8 44 71 / 0.07);
+  --sidebar: #082c47;
+}
+:root[data-brand='ice'].dark {
+  --canvas: #03141f;
+  --surface: #08202f;
+  --surface-2: #0f2d41;
+  --line: #173a52;
+  --line-strong: #24506d;
+  --ink: #eef8fc;
+  --muted: #97b4c4;
+  --primary: #38bdf8;
+  --primary-hover: #67d3f5;
+  --on-primary: #03202f;
+  --accent: #67d3f5;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --shadow-card: 0 12px 34px rgb(0 0 0 / 0.42);
+  --sidebar: #021019;
+}
+
+/* A theme change fades the colours instead of jumping (only while switching). */
+:root.brand-switching,
+:root.brand-switching * {
+  transition:
+    background-color 0.35s ease,
+    border-color 0.35s ease,
+    color 0.35s ease,
+    fill 0.35s ease !important;
+}
+
 @theme inline {
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
@@ -81,6 +192,7 @@
   --color-navy-700: var(--navy-700);
   --color-blue-brand: var(--blue-600);
   --color-blue-bright: var(--blue-400);
+  --color-blue-deep: var(--blue-700);
   --color-sidebar: var(--sidebar);
   --shadow-card: var(--shadow-card);
 

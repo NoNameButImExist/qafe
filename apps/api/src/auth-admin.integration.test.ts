@@ -499,3 +499,79 @@ describe('health', () => {
     expect(res.statusCode).toBe(200);
   });
 });
+
+describe('platform settings (theme, SMTP)', () => {
+  let token: string;
+  const as = (method: 'GET' | 'PUT' | 'POST', url: string, payload?: object) =>
+    app.inject({ method, url, payload, headers: bearer(token) });
+
+  beforeAll(async () => {
+    token = (await login(ADMIN, '10.0.7.1')).json<AuthSession>().accessToken;
+  });
+
+  it('serves the theme to anyone and lets only an admin change it', async () => {
+    const pub = await app.inject({ method: 'GET', url: '/platform/theme' });
+    expect(pub.json()).toEqual({ brand: 'warm' });
+    expect(pub.headers['cache-control']).toBe('no-cache');
+
+    const anon = await app.inject({
+      method: 'PUT',
+      url: '/admin/settings/theme',
+      payload: { brand: 'ice' },
+    });
+    expect(anon.statusCode).toBe(401);
+    expect((await as('PUT', '/admin/settings/theme', { brand: 'neon' })).statusCode).toBe(400);
+    expect((await as('PUT', '/admin/settings/theme', { brand: 'ice' })).json()).toEqual({
+      brand: 'ice',
+    });
+    expect((await app.inject({ method: 'GET', url: '/platform/theme' })).json()).toEqual({
+      brand: 'ice',
+    });
+  });
+
+  it('falls back to the default theme when the stored value is broken', async () => {
+    await admin.query(
+      `UPDATE core.platform_settings SET value = '{"brand":"gone"}' WHERE key = 'theme'`,
+    );
+    expect((await app.inject({ method: 'GET', url: '/platform/theme' })).json()).toEqual({
+      brand: 'warm',
+    });
+  });
+
+  it('stores SMTP settings with the password encrypted and never returns it', async () => {
+    expect((await as('GET', '/admin/settings/smtp')).json()).toMatchObject({ configured: false });
+    const saved = await as('PUT', '/admin/settings/smtp', {
+      host: '127.0.0.1',
+      port: 1,
+      security: 'none',
+      username: 'mailer',
+      password: 'Smtp-Tajna-1',
+      fromName: 'qafe.ba',
+      fromEmail: 'noreply@qafe.ba',
+    });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json()).toMatchObject({ configured: true, hasPassword: true, username: 'mailer' });
+    expect(saved.body).not.toContain('Smtp-Tajna-1');
+    const row = await admin.query<{ value: unknown }>(
+      `SELECT value FROM core.platform_settings WHERE key = 'smtp'`,
+    );
+    expect(JSON.stringify(row.rows[0]!.value)).not.toContain('Smtp-Tajna-1');
+
+    // Omitting the password keeps it; an empty one removes it.
+    const kept = await as('PUT', '/admin/settings/smtp', {
+      host: '127.0.0.1',
+      port: 1,
+      security: 'none',
+      username: 'mailer',
+      fromName: 'qafe.ba',
+      fromEmail: 'noreply@qafe.ba',
+    });
+    expect(kept.json()).toMatchObject({ hasPassword: true });
+  });
+
+  it('reports why a test message could not be sent', async () => {
+    const res = await as('POST', '/admin/settings/smtp/test', { to: 'admin@qafe.ba' });
+    expect(res.statusCode).toBe(502);
+    expect(res.json()).toMatchObject({ error: { code: 'smtp_failed' } });
+  });
+});

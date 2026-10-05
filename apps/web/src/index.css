@@ -109,6 +109,91 @@
   color: var(--color-ink);
 }
 
+/*
+ * Platform theme "ice" (the super admin switches it in the admin panel; see brand.ts). The
+ * same token names with cool summer values: the dark sections become glacier navy, the light
+ * ones frost. Every text and background pair passes WCAG AA, like the default teal and sand.
+ */
+:root[data-brand='ice'] {
+  --color-paper: #082c47;
+  --color-surface: #0d3a5c;
+  --color-surface-2: #144a72;
+  --color-ink: #eef8fc;
+  --color-muted: #a8c3d4;
+  --color-line: #164a6e;
+  --color-line-strong: #2a5f85;
+
+  --color-navy: #06233a;
+  --color-navy-deep: #04192b;
+  --color-navy-soft: #0d3a5c;
+  --color-navy-line: #1a4c70;
+  --color-on-navy: #eef8fc;
+  --color-on-navy-muted: #a8c3d4;
+
+  --color-primary: #eef8fc;
+  --color-primary-hover: #ffffff;
+  --color-on-primary: #082c47;
+  --color-bright: #5fd0f3;
+  --color-highlight: #eef8fc;
+  --color-on-highlight: #082c47;
+  --color-print: #f7fbfd;
+  --color-on-print: #082c47;
+  --color-phone: #031522;
+  --color-phone-edge: #1d4a6b;
+  --shadow-float: 0 30px 70px -24px rgb(2 18 31 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.06);
+  --shadow-phone: 0 60px 120px -30px rgb(2 18 31 / 0.75), inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  --cover: linear-gradient(135deg, #04192b 0%, #082c47 60%, #2a7fae 100%);
+}
+:root[data-brand='ice'] .theme-teal {
+  --color-paper: #082c47;
+  --color-surface: #0d3a5c;
+  --color-surface-2: #144a72;
+  --color-ink: #eef8fc;
+  --color-muted: #a8c3d4;
+  --color-line: #164a6e;
+  --color-line-strong: #2a5f85;
+
+  --color-navy: #06233a;
+  --color-navy-deep: #04192b;
+  --color-navy-soft: #0d3a5c;
+  --color-navy-line: #1a4c70;
+  --color-on-navy: #eef8fc;
+  --color-on-navy-muted: #a8c3d4;
+
+  --color-primary: #eef8fc;
+  --color-primary-hover: #ffffff;
+  --color-on-primary: #082c47;
+  --color-bright: #5fd0f3;
+  --color-highlight: #eef8fc;
+  --color-on-highlight: #082c47;
+}
+:root[data-brand='ice'] .theme-sand {
+  --color-paper: #eef6fa;
+  --color-surface: #f8fcfe;
+  --color-surface-2: #dceaf2;
+  --color-ink: #082c47;
+  --color-muted: #4c6779;
+  --color-line: #cfe0ea;
+  --color-line-strong: #aec8d6;
+
+  --color-primary: #082c47;
+  --color-primary-hover: #04192b;
+  --color-on-primary: #eef8fc;
+  --color-bright: #0a6fa1;
+  --color-highlight: #082c47;
+  --color-on-highlight: #eef8fc;
+}
+
+/* A theme change fades the colours instead of jumping (only while switching). */
+:root.brand-switching,
+:root.brand-switching * {
+  transition:
+    background-color 0.35s ease,
+    border-color 0.35s ease,
+    color 0.35s ease,
+    fill 0.35s ease !important;
+}
+
 :root {
   /* Placeholder "photos" for menu items in the phone mockups. */
   --thumb-1: linear-gradient(140deg, #8a5a3c, #3b2418);

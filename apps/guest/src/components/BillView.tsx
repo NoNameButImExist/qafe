@@ -60,6 +60,19 @@ export function BillView({ state, venue }: { state: GuestSessionState; venue: Gu
                 <span>{t('bill.vat')}</span>
                 <span className="tabular-nums">{money(state.bill.vatAmount)}</span>
               </p>
+              {state.bill.paid !== '0.00' && (
+                // Someone at the table already paid their part (FR-KON-20).
+                <>
+                  <p className="mt-2 flex justify-between text-sm text-success">
+                    <span>{t('bill.paid')}</span>
+                    <span className="tabular-nums">−{money(state.bill.paid)}</span>
+                  </p>
+                  <p className="mt-1 flex justify-between text-base font-semibold text-ink">
+                    <span>{t('bill.remaining')}</span>
+                    <span className="tabular-nums">{money(state.bill.remaining)}</span>
+                  </p>
+                </>
+              )}
             </div>
           </>
         )}

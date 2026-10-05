@@ -10,6 +10,7 @@ import {
   UtensilsCrossed,
   Volume2,
   VolumeX,
+  Wallet,
   WifiOff,
 } from 'lucide-react';
 import { AnimatePresence, m } from 'motion/react';
@@ -177,6 +178,7 @@ function AppShell() {
       badge: 0,
       show: staff.modules.includes('kds') && canSeeOrders,
     },
+    { to: '/me' as const, icon: Wallet, label: t('nav.myDay'), badge: 0, show: true },
   ].filter((n) => n.show);
   const initials = staff.fullName
     .split(/\s+/)

@@ -9,8 +9,13 @@ import '@fontsource-variable/inter';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { applyStoredBrand, syncPlatformBrand } from './brand';
 import { I18nProvider } from './i18n/I18nProvider';
 import './index.css';
+
+// Platform colour theme: the last known one at once, then the admin's current choice.
+applyStoredBrand();
+syncPlatformBrand();
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element');

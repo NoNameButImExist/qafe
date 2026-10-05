@@ -15,6 +15,11 @@ import {
 import {
   AdminUserListQuery,
   MonitoringQuery,
+  PlatformTheme,
+  SmtpTestRequest,
+  UpdateSmtpRequest,
+  type SmtpSettings,
+  type UpdateSmtpInput,
   CreateVenueRequest,
   ResetPasswordRequest,
   type ResetPasswordInput,
@@ -45,6 +50,7 @@ import { ZodPipe } from '../../../common/zod.pipe.js';
 import { AdminUsersService } from './admin-users.service.js';
 import { AdminVenuesService } from './admin-venues.service.js';
 import { MonitoringService } from './monitoring.service.js';
+import { PlatformSettingsService } from './platform-settings.service.js';
 
 /** Platform administration (FR-ADM). Super admins only. */
 @Controller('admin')
@@ -54,7 +60,43 @@ export class AdminController {
     private readonly venues: AdminVenuesService,
     private readonly users: AdminUsersService,
     private readonly monitoring: MonitoringService,
+    private readonly settings: PlatformSettingsService,
   ) {}
+
+  /** Colour theme of the admin, panel and staff apps, for the whole platform. */
+  @Get('settings/theme')
+  theme(): Promise<PlatformTheme> {
+    return this.settings.theme();
+  }
+
+  @Put('settings/theme')
+  setTheme(
+    @CurrentUser() admin: AccessClaims,
+    @Body(new ZodPipe(PlatformTheme)) body: PlatformTheme,
+  ): Promise<PlatformTheme> {
+    return this.settings.setTheme(admin, body.brand);
+  }
+
+  @Get('settings/smtp')
+  smtp(): Promise<SmtpSettings> {
+    return this.settings.smtp();
+  }
+
+  @Put('settings/smtp')
+  setSmtp(
+    @CurrentUser() admin: AccessClaims,
+    @Body(new ZodPipe(UpdateSmtpRequest)) body: UpdateSmtpInput,
+  ): Promise<SmtpSettings> {
+    return this.settings.setSmtp(admin, body);
+  }
+
+  @Post('settings/smtp/test')
+  @HttpCode(200)
+  testSmtp(
+    @Body(new ZodPipe(SmtpTestRequest)) body: SmtpTestRequest,
+  ): Promise<{ messageId: string }> {
+    return this.settings.testSmtp(body.to);
+  }
 
   /** FR-ADM-17, FR-ADM-18: services, latency and errors, from Prometheus only (NFR-22). */
   @Get('monitoring')

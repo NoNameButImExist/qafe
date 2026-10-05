@@ -164,7 +164,7 @@ export async function loadOrders(
  * The session bill: accepted orders without an open "Nije naše" dispute (FR-GOS-16, 25),
  * live items only, grouped by name and unit price. VAT is included in the prices.
  */
-export function buildBill(orders: LoadedOrder[]): GuestSessionState['bill'] {
+export function buildBill(orders: LoadedOrder[], paidAmount = '0.00'): GuestSessionState['bill'] {
   const lines = new Map<string, BillLine & { cents: number }>();
   let total = 0;
   let vat = 0;
@@ -195,10 +195,14 @@ export function buildBill(orders: LoadedOrder[]): GuestSessionState['bill'] {
     vat += (orderCents * rate) / (100 + rate);
     total += orderCents;
   }
+  // Partial payments (FR-KON-20) lower what is still to pay, never below zero.
+  const paid = cents(paidAmount);
   return {
     lines: [...lines.values()].map(({ cents: c, ...line }) => ({ ...line, total: fromCents(c) })),
     total: fromCents(total),
     vatAmount: fromCents(Math.round(vat)),
+    paid: fromCents(paid),
+    remaining: fromCents(Math.max(0, total - paid)),
   };
 }
 
@@ -218,6 +222,7 @@ export async function loadSessionState(
       'host_guest_id',
       'verified_at',
       'requested_payment_method',
+      'paid_amount',
     ])
     .where('id', '=', sessionId)
     .executeTakeFirstOrThrow();
@@ -265,7 +270,7 @@ export async function loadSessionState(
     me,
     guests: view,
     orders: orders.map(guestOrder),
-    bill: buildBill(orders),
+    bill: buildBill(orders, session.paid_amount),
     callWaiterAvailableAt:
       callAgainAt && callAgainAt > new Date() ? callAgainAt.toISOString() : null,
   };
@@ -309,4 +314,38 @@ export function blockingOrders(orders: LoadedOrder[]): number {
       o.status === 'returned' ||
       (o.dispute === 'open' && !['cancelled', 'rejected', 'withdrawn'].includes(o.status)),
   ).length;
+}
+
+/** One billable order item, for paying items one by one (FR-KON-20). */
+export interface BillableItem {
+  orderItemId: string;
+  orderId: string;
+  /** Name with its options, as on the bill. */
+  name: string;
+  quantity: number;
+  lineTotal: string;
+  vatRate: string;
+}
+
+/** The items the bill is made of (same rules as buildBill). */
+export function billableItems(orders: LoadedOrder[]): BillableItem[] {
+  const items: BillableItem[] = [];
+  for (const order of orders) {
+    if (!(BILLABLE as readonly string[]).includes(order.status)) continue;
+    if (order.dispute === 'open') continue;
+    for (const item of order.items) {
+      if (!(LIVE_ITEMS as readonly string[]).includes(item.status)) continue;
+      items.push({
+        orderItemId: item.id,
+        orderId: order.id,
+        name: item.modifiers.length
+          ? `${item.name} (${item.modifiers.map((m) => m.option).join(', ')})`
+          : item.name,
+        quantity: item.quantity,
+        lineTotal: item.lineTotal,
+        vatRate: order.vatRate,
+      });
+    }
+  }
+  return items;
 }

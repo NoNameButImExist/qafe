@@ -64,10 +64,13 @@ export function AuthBrandPanel({ tagline, badge, lines, subtitle, features }: Au
         preserveAspectRatio="none"
         aria-hidden
       >
-        <path d="M0 110 C 220 40, 480 170, 800 60 L 800 160 L 0 160 Z" fill="#0070E8" />
+        <path
+          d="M0 110 C 220 40, 480 170, 800 60 L 800 160 L 0 160 Z"
+          className="fill-blue-brand"
+        />
         <path
           d="M0 132 C 260 80, 520 175, 800 100 L 800 160 L 0 160 Z"
-          fill="#0056C4"
+          className="fill-blue-deep"
           opacity="0.55"
         />
       </svg>

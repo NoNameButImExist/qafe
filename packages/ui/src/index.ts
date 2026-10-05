@@ -1,5 +1,12 @@
 export { AuthBrandPanel } from './AuthBrandPanel';
 export { Brand } from './Brand';
+export {
+  applyBrand,
+  applyStoredBrand,
+  currentBrand,
+  syncPlatformBrand,
+  useBrand,
+} from './platform-brand';
 export { Button } from './Button';
 export { Card, SectionTitle } from './Card';
 export { cn } from './cn';
@@ -7,6 +14,7 @@ export { ChangePasswordForm } from './ChangePasswordForm';
 export { ConfirmDialog } from './ConfirmDialog';
 export { CopyRow } from './CopyRow';
 export { Field, Input, Select, Textarea } from './Field';
+export { ImageInput } from './ImageInput';
 export { Menu, MenuItem } from './Menu';
 export { Notice } from './Notice';
 export { Pagination } from './Pagination';

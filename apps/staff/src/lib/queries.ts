@@ -1,4 +1,11 @@
-import type { Floor, KdsView, Menu, StaffOrderList, StaffSessionDetail } from '@qafe/contracts';
+import type {
+  Floor,
+  KdsView,
+  Menu,
+  MyDay,
+  StaffOrderList,
+  StaffSessionDetail,
+} from '@qafe/contracts';
 import { queryOptions } from '@tanstack/react-query';
 import { api } from './api';
 
@@ -37,4 +44,12 @@ export const kdsQuery = (station?: string) =>
     queryFn: () => api<KdsView>('/staff/kds', { query: { station } }),
     staleTime: 2_000,
     refetchInterval: 15_000,
+  });
+
+/** The member's own turnover for a business day (FR-KON-23); today's without a date. */
+export const myDayQuery = (date?: string) =>
+  queryOptions({
+    queryKey: ['my-day', date ?? 'today'],
+    queryFn: () => api<MyDay>(`/reports/me${date ? `?date=${date}` : ''}`),
+    staleTime: 30_000,
   });

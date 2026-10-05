@@ -7,6 +7,8 @@ import { validateUsersSearch } from './lib/usersSearch';
 import { validateVenuesSearch } from './lib/venuesSearch';
 import { AccountPage } from './pages/AccountPage';
 import { AuditPage } from './pages/AuditPage';
+import { SettingsPage } from './pages/SettingsPage';
+import { VenueMenuPage } from './pages/VenueMenuPage';
 import { SystemPage } from './pages/SystemPage';
 import { ModulesPage } from './pages/ModulesPage';
 import { UsersPage } from './pages/UsersPage';
@@ -49,6 +51,12 @@ const venueDetailRoute = createRoute({
   component: VenueDetailPage,
 });
 
+const venueMenuRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/venues/$venueId/menu',
+  component: VenueMenuPage,
+});
+
 const usersRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/users',
@@ -75,6 +83,12 @@ const auditRoute = createRoute({
   component: AuditPage,
 });
 
+const settingsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/settings',
+  component: SettingsPage,
+});
+
 const systemRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/system',
@@ -91,10 +105,12 @@ const routeTree = rootRoute.addChildren([
     overviewRoute,
     venuesRoute,
     venueDetailRoute,
+    venueMenuRoute,
     usersRoute,
     modulesRoute,
     auditRoute,
     systemRoute,
+    settingsRoute,
   ]),
 ]);
 

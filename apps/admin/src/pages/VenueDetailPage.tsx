@@ -7,7 +7,15 @@ import {
 } from '@qafe/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
-import { ArrowLeft, CircleAlert, CircleCheck, Crown, KeyRound, Save } from 'lucide-react';
+import {
+  ArrowLeft,
+  CircleAlert,
+  CircleCheck,
+  Crown,
+  KeyRound,
+  Save,
+  UtensilsCrossed,
+} from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ModuleIcon } from '../components/ModuleIcon';
@@ -101,6 +109,16 @@ export function VenueDetailPage() {
             <div className="h-14 w-72 animate-pulse rounded-xl bg-surface-2" />
           )}
         </div>
+        {data && (
+          <Link
+            to="/venues/$venueId/menu"
+            params={{ venueId }}
+            className="inline-flex h-11 items-center gap-2 rounded-xl border border-line bg-surface px-4 text-sm font-semibold text-ink hover:border-line-strong"
+          >
+            <UtensilsCrossed className="size-4 text-accent" />
+            {t('venue.editMenu')}
+          </Link>
+        )}
         {data && (
           <VenueStatusMenu
             labelled

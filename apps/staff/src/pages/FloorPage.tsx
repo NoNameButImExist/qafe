@@ -113,13 +113,13 @@ export function FloorPage() {
               onClick={() => choose(c.id)}
               className={cn(
                 'relative h-11 shrink-0 rounded-full px-4 text-sm font-semibold transition-colors',
-                area === c.id ? 'text-white' : 'bg-surface text-ink ring-1 ring-line',
+                area === c.id ? 'text-on-primary' : 'bg-surface text-ink ring-1 ring-line',
               )}
             >
               {area === c.id && (
                 <m.span
                   layoutId="area"
-                  className="absolute inset-0 rounded-full bg-navy-900"
+                  className="absolute inset-0 rounded-full bg-primary"
                   transition={{ type: 'spring', stiffness: 500, damping: 38 }}
                 />
               )}

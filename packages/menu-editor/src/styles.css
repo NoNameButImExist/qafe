@@ -1,0 +1,3 @@
+/* Lets Tailwind see the classes used by the menu editor. Apps import it after
+   '@qafe/ui/theme.css':  @import '@qafe/menu-editor/styles.css'; */
+@source './';

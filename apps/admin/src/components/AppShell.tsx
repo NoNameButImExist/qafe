@@ -7,6 +7,7 @@ import {
   LogOut,
   Menu as MenuIcon,
   ScrollText,
+  Settings,
   Store,
   Users,
   X,
@@ -29,7 +30,7 @@ import {
 } from '@qafe/ui';
 
 interface NavItem {
-  to: '/' | '/venues' | '/users' | '/modules' | '/audit' | '/system';
+  to: '/' | '/venues' | '/users' | '/modules' | '/audit' | '/system' | '/settings';
   icon: LucideIcon;
   label: string;
 }
@@ -84,6 +85,7 @@ function AppShell() {
         { to: '/venues', icon: Store, label: t('nav.venues') },
         { to: '/users', icon: Users, label: t('nav.users') },
         { to: '/modules', icon: Blocks, label: t('nav.modules') },
+        { to: '/settings', icon: Settings, label: t('nav.settings') },
       ],
     },
     {

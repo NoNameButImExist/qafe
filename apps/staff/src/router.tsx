@@ -4,6 +4,7 @@ import { KdsPage } from './pages/KdsPage';
 import { FloorPage } from './pages/FloorPage';
 import { LoginPage } from './pages/LoginPage';
 import { MenuPage } from './pages/MenuPage';
+import { MyDayPage } from './pages/MyDayPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { TablePage } from './pages/TablePage';
 
@@ -38,6 +39,11 @@ const menuRoute = createRoute({
   path: '/menu',
   component: MenuPage,
 });
+const myDayRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/me',
+  component: MyDayPage,
+});
 export const tableRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/table/$tableId',
@@ -55,7 +61,7 @@ const kdsRoute = createRoute({ getParentRoute: () => bareRoute, path: '/kds', co
 const routeTree = rootRoute.addChildren([
   loginRoute,
   bareRoute.addChildren([kdsRoute]),
-  appRoute.addChildren([floorRoute, ordersRoute, menuRoute, tableRoute]),
+  appRoute.addChildren([floorRoute, ordersRoute, menuRoute, myDayRoute, tableRoute]),
 ]);
 
 export const router = createRouter({ routeTree, defaultPreload: 'intent' });

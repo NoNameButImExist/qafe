@@ -1,8 +1,7 @@
 import { ImagePlus, LoaderCircle, Trash } from 'lucide-react';
 import { useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { Button, cn } from '@qafe/ui';
-import { errorKey } from '../lib/api';
+import { Button } from './Button';
+import { cn } from './cn';
 
 interface ImageInputProps {
   url: string | null;
@@ -15,6 +14,8 @@ interface ImageInputProps {
   hint: string;
   disabled?: boolean;
   className?: string;
+  /** The app's translated message for a failed upload. */
+  errorText: (error: unknown) => string;
 }
 
 /** Image preview with upload and remove; errors are shown under the preview. */
@@ -28,8 +29,8 @@ export function ImageInput({
   hint,
   disabled,
   className,
+  errorText,
 }: ImageInputProps) {
-  const { t } = useTranslation();
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +42,7 @@ export function ImageInput({
     try {
       await onUpload(file);
     } catch (err) {
-      setError(t(errorKey(err)));
+      setError(errorText(err));
     } finally {
       setBusy(false);
       if (input.current) input.current.value = '';

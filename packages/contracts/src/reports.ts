@@ -67,3 +67,20 @@ export const ReportExportQuery = z.object({
   lang: z.enum(['bs', 'en']).default('bs'),
 });
 export type ReportExportQuery = z.infer<typeof ReportExportQuery>;
+
+/** GET /reports/me?date= — one member's own day (FR-KON-23): what the tables they served paid. */
+export const MyDayQuery = z.object({ date: IsoDate.optional() });
+export type MyDayQuery = z.infer<typeof MyDayQuery>;
+
+export const MyDay = z.object({
+  /** The business day shown; today's when none was asked for. */
+  date: z.string(),
+  revenue: z.string(),
+  orders: z.number().int(),
+  items: z.number().int(),
+  byMethod: z.array(z.object({ method: z.string(), revenue: z.string() })),
+  topItems: z.array(
+    z.object({ name: z.string(), quantity: z.number().int(), revenue: z.string() }),
+  ),
+});
+export type MyDay = z.infer<typeof MyDay>;

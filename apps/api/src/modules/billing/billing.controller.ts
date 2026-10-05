@@ -1,5 +1,10 @@
-import { Body, Controller, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
-import { PayRequest, type PaymentResult } from '@qafe/contracts';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
+import {
+  PayItemsRequest,
+  PayRequest,
+  type PaymentResult,
+  type SessionPayments,
+} from '@qafe/contracts';
 import {
   CurrentStaff,
   RequirePermission,
@@ -23,5 +28,26 @@ export class BillingController {
     @Body(new ZodPipe(PayRequest)) body: PayRequest,
   ): Promise<PaymentResult> {
     return this.billing.pay(staff, id, body.method);
+  }
+
+  /** One guest pays some items; the table stays open until all is paid (FR-KON-20). */
+  @Post('sessions/:id/pay-items')
+  @RequirePermission('payments.process')
+  payItems(
+    @CurrentStaff() staff: StaffClaims,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body(new ZodPipe(PayItemsRequest)) body: PayItemsRequest,
+  ): Promise<PaymentResult> {
+    return this.billing.payItems(staff, id, body);
+  }
+
+  /** What partial payments covered so far, item by item. */
+  @Get('sessions/:id/payments')
+  @RequirePermission('orders.view')
+  payments(
+    @CurrentStaff() staff: StaffClaims,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<SessionPayments> {
+    return this.billing.payments(staff, id);
   }
 }

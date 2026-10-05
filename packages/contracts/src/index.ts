@@ -13,3 +13,4 @@ export * from './users.js';
 export * from './venue-settings.js';
 export * from './venues.js';
 export * from './monitoring.js';
+export * from './platform-settings.js';

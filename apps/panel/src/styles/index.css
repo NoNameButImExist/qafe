@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import '@qafe/ui/theme.css';
+@import '@qafe/menu-editor/styles.css';
 
 /* Report charts: one series, one hue (validated against both surfaces). */
 :root {
@@ -7,4 +8,8 @@
 }
 .dark {
   --chart-bar: #3d8bff;
+}
+/* Themes (warm, ice): the accent, already checked for contrast on both surfaces. */
+:root[data-brand] {
+  --chart-bar: var(--accent);
 }

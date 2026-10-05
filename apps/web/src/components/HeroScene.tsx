@@ -71,7 +71,7 @@ function CameraScreen({ step }: { step: number }) {
   return (
     <div className="relative h-full overflow-hidden bg-navy-deep">
       {/* What the camera sees: a blurry table and the tent close up. */}
-      <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_100%,#3b2a1f_0%,transparent_60%),radial-gradient(90%_60%_at_20%_10%,#0b524e_0%,transparent_70%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_100%,#3b2a1f_0%,transparent_60%),radial-gradient(90%_60%_at_20%_10%,var(--color-surface)_0%,transparent_70%)]" />
       <motion.div
         className="absolute top-[44%] left-1/2 w-[64%] -translate-1/2"
         initial={false}

@@ -6,6 +6,7 @@ import type {
   AuditList,
   AuditParams,
   MonitoringOverview,
+  SmtpSettings,
   MonitoringWindow,
   PlatformModule,
   VenueDetail,
@@ -76,3 +77,9 @@ export const monitoringQuery = (window: MonitoringWindow) =>
     refetchInterval: 30_000,
     placeholderData: keepPreviousData,
   });
+
+/** SMTP settings of the platform (the password itself never comes back). */
+export const smtpQuery = queryOptions({
+  queryKey: ['admin', 'settings', 'smtp'],
+  queryFn: () => api<SmtpSettings>('/admin/settings/smtp'),
+});

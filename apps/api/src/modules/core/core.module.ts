@@ -20,6 +20,8 @@ import {
 } from './venue/venue-space-staff.controller.js';
 import { SpaceService } from './space/space.service.js';
 import { MonitoringService } from './admin/monitoring.service.js';
+import { PlatformController } from './admin/platform.controller.js';
+import { PlatformSettingsService } from './admin/platform-settings.service.js';
 import { StaffDevicesService } from './staff/staff-devices.service.js';
 import { StaffService } from './staff/staff.service.js';
 import { VenueSettingsService } from './venue/venue-settings.service.js';
@@ -29,6 +31,7 @@ import { VenueSettingsService } from './venue/venue-settings.service.js';
   controllers: [
     AuthController,
     AdminController,
+    PlatformController,
     PublicVenuesController,
     VenueSettingsController,
     VenueSpaceController,
@@ -44,6 +47,7 @@ import { VenueSettingsService } from './venue/venue-settings.service.js';
     AdminVenuesService,
     AdminUsersService,
     MonitoringService,
+    PlatformSettingsService,
     VenueSettingsService,
     SpaceService,
     StaffService,

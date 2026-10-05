@@ -27,8 +27,15 @@ export function userLabel(fullName: string, email: string | null): string {
  */
 export async function publish(trx: Tx, event: CoreEvent): Promise<void> {
   const venueId = 'venueId' in event ? (event.venueId ?? null) : null;
+  // Platform settings belong to no venue or entity: the admin who changed them stands in.
   const aggregateId =
-    'entityId' in event ? event.entityId : 'userId' in event ? event.userId : event.venueId;
+    'entityId' in event
+      ? event.entityId
+      : 'userId' in event
+        ? event.userId
+        : 'venueId' in event
+          ? event.venueId
+          : event.actor.id;
   await trx
     .insertInto('core.outbox')
     .values({

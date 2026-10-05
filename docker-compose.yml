@@ -249,7 +249,7 @@ services:
     labels:
       traefik.enable: 'true'
       # Every frontend calls its own origin under /api (same-origin cookies, no CORS).
-      traefik.http.routers.api.rule: HostRegexp(`^[a-z0-9-]+\.${DOMAIN:-qafe.localhost}$$`) && PathPrefix(`/api`)
+      traefik.http.routers.api.rule: (HostRegexp(`^[a-z0-9-]+\.${DOMAIN:-qafe.localhost}$$`) || Host(`${DOMAIN:-qafe.localhost}`)) && PathPrefix(`/api`)
       traefik.http.routers.api.priority: '100'
       traefik.http.routers.api.entrypoints: web
       traefik.http.routers.api.middlewares: strip-api

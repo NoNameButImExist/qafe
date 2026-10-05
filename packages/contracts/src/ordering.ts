@@ -246,6 +246,19 @@ export const BillLine = z.object({
 });
 export type BillLine = z.infer<typeof BillLine>;
 
+/**
+ * A table's bill. `paid` is what partial payments covered so far (FR-KON-20); `remaining` is
+ * what is still to pay (total - paid).
+ */
+export const Bill = z.object({
+  lines: z.array(BillLine),
+  total: z.string(),
+  vatAmount: z.string(),
+  paid: z.string(),
+  remaining: z.string(),
+});
+export type Bill = z.infer<typeof Bill>;
+
 /** GET /guest/session — everything one device sees about its table (FR-GOS-10..16, 24). */
 export const GuestSessionState = z.object({
   session: z.object({
@@ -263,7 +276,7 @@ export const GuestSessionState = z.object({
   guests: z.array(SessionGuest),
   orders: z.array(SessionOrder),
   /** Accepted orders without an open dispute (FR-GOS-16, FR-GOS-25). */
-  bill: z.object({ lines: z.array(BillLine), total: z.string(), vatAmount: z.string() }),
+  bill: Bill,
   /** When "Pozovi konobara" may be pressed again; null = now (FR-GOS-14). */
   callWaiterAvailableAt: z.string().nullable(),
 });

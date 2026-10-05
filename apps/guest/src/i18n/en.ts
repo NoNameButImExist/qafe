@@ -44,6 +44,11 @@ const en: Messages = {
   },
   tabs: { menu: 'Menu', orders: 'Orders', bill: 'Bill' },
   menu: {
+    search: 'Search the menu',
+    clearSearch: 'Clear search',
+    results_one: '{{count}} result',
+    results_few: '{{count}} results',
+    results_other: '{{count}} results',
     empty: 'The menu is not published yet.',
     soldOut: 'Sold out',
     add: 'Add',
@@ -116,6 +121,8 @@ const en: Messages = {
     disputeConfirmed: 'The waiter confirmed this order',
   },
   bill: {
+    paid: 'Already paid',
+    remaining: 'Still to pay',
     title: 'Table bill',
     empty: 'No accepted orders on the bill yet.',
     total: 'Total',

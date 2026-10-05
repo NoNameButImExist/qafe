@@ -9,6 +9,7 @@ import { formatMoney, formatTime, minutesSince } from '../lib/format';
 import { useAction, useQueuedAction } from '../lib/useAction';
 import { useCan } from '../lib/useAuth';
 import { ItemPicker } from './ItemPicker';
+import { TablePicker } from './TablePicker';
 
 const TONES: Record<StaffOrder['status'], string> = {
   new: 'bg-danger/12 text-danger',
@@ -104,6 +105,9 @@ export function OrderCard({
     }
   });
   const dispute = useAction((action: 'confirm' | 'cancel') => post('/dispute', { action }));
+  // FR-KON-14: the order was entered at the wrong table, or the guests split up.
+  const [moving, setMoving] = useState(false);
+  const move = useAction((tableId: string) => post('/move', { tableId }), t('move.orderMoved'));
   const add = useAction(
     (items: OrderLineRequest[]) => post('/items', { items }),
     t('picker.added'),
@@ -318,6 +322,11 @@ export function OrderCard({
               {t('orders.addItems')}
             </Button>
           )}
+          {can.update && (
+            <Button size="sm" variant="secondary" onClick={() => setMoving(true)}>
+              {t('move.order')}
+            </Button>
+          )}
           {order.status === 'new' && can.ret && (
             <Button size="sm" variant="secondary" onClick={() => openDialog({ kind: 'return' })}>
               {t('orders.returnToGuest')}
@@ -336,6 +345,15 @@ export function OrderCard({
         </div>
       )}
 
+      <TablePicker
+        open={moving}
+        title={t('move.orderTitle', { number: order.number })}
+        hint={t('move.orderHint')}
+        excludeTableId={order.tableId}
+        busy={move.isPending}
+        onClose={() => setMoving(false)}
+        onPick={(table) => move.mutate(table.id, { onSuccess: () => setMoving(false) })}
+      />
       <ConfirmDialog
         open={dialog !== null}
         title={dialogTitle()}

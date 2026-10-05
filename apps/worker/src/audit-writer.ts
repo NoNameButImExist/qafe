@@ -174,6 +174,16 @@ export function toAuditRow(event: OutboxEvent): AuditRow {
         old_values: json(e.before),
         new_values: json({ ...e.after, name: e.entityName }),
       };
+    case 'platform.theme_changed':
+    case 'platform.smtp_updated':
+      return {
+        ...base,
+        ...actor,
+        entity_type: 'platform',
+        entity_id: null,
+        old_values: json(e.before),
+        new_values: json(e.after),
+      };
     case 'staff.created':
     case 'staff.updated':
     case 'staff.password_reset':
