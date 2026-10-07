@@ -16,7 +16,7 @@
   "devDependencies": {
     "@qafe/config": "workspace:*",
     "@testcontainers/postgresql": "^12.2.0",
-    "@types/node": "^24.19.0",
+    "@types/node": "^26.6.4",
     "@types/pg": "^8.23.1",
     "@types/web-push": "^3.6.4",
     "pg": "^8.23.0",
