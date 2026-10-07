@@ -14,7 +14,7 @@
     "test:integration": "vitest run integration"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1142.0",
+    "@aws-sdk/client-s3": "^3.1146.0",
     "@fastify/cookie": "^11.1.2",
     "@fastify/multipart": "^10.1.2",
     "@nestjs/common": "^12.1.2",
@@ -34,26 +34,26 @@
     "nodemailer": "^10.0.14",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
-    "socket.io": "4.8.3",
+    "socket.io": "4.8.4",
     "write-excel-file": "^4.1.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@nestjs/testing": "^12.1.2",
     "@qafe/config": "workspace:*",
-    "@swc/core": "^1.16.12",
+    "@swc/core": "^1.16.13",
     "@testcontainers/postgresql": "^12.2.0",
     "@testcontainers/redis": "^12.2.0",
     "@types/node": "^24.19.0",
     "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.23.1",
     "jose": "^6.2.12",
-    "pg": "^8.23.0",
+    "pg": "^8.23.1",
     "socket.io-client": "^4.8.4",
     "testcontainers": "^12.2.0",
     "tsc-watch": "^7.2.1",
     "typescript": "~6.0.3",
     "unplugin-swc": "^2.0.0",
-    "vitest": "^5.0.2"
+    "vitest": "^5.0.3"
   }
 }
