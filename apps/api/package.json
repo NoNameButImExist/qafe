@@ -44,7 +44,7 @@
     "@swc/core": "^1.16.12",
     "@testcontainers/postgresql": "^12.2.0",
     "@testcontainers/redis": "^12.2.0",
-    "@types/node": "^24.19.0",
+    "@types/node": "^26.6.4",
     "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.23.1",
     "jose": "^6.2.12",

@@ -35,7 +35,7 @@
     "@qafe/auth": "workspace:*",
     "@qafe/config": "workspace:*",
     "@testcontainers/postgresql": "^12.2.0",
-    "@types/node": "^24.19.0",
+    "@types/node": "^26.6.4",
     "@types/pg": "^8.23.1",
     "dbmate": "^2.36.0",
     "kysely-codegen": "^0.20.0",
