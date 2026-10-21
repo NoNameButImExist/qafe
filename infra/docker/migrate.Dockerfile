@@ -3,7 +3,7 @@
 #   docker build -f infra/docker/migrate.Dockerfile .
 #   docker run --rm -e DATABASE_URL=postgres://... ghcr.io/<owner>/qafe-migrate:<version>
 
-FROM ghcr.io/amacneil/dbmate:2.36.0
+FROM ghcr.io/amacneil/dbmate:2.37.0
 COPY packages/db/migrations /db/migrations
 ENV DBMATE_MIGRATIONS_DIR=/db/migrations \
     DBMATE_NO_DUMP_SCHEMA=true \
