@@ -39,14 +39,14 @@
     "*.{json,yml,yaml,css,html}": "prettier --write"
   },
   "devDependencies": {
-    "@commitlint/cli": "^21.2.3",
-    "@commitlint/config-conventional": "^21.2.3",
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
     "@qafe/config": "workspace:*",
-    "eslint": "^10.11.0",
+    "eslint": "^10.13.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
-    "prettier": "^3.9.9",
-    "turbo": "^2.11.5",
+    "prettier": "^3.9.10",
+    "turbo": "^2.11.10",
     "typescript": "~6.0.3"
   }
 }
